@@ -86,9 +86,9 @@ struct Unit {
     /// How to install this Unit.
     install: Install,
 
-    after: Arc<Unit>,
-    before: Arc<Unit>,
-    wants: Arc<Unit>,
+    after: Option<Arc<Unit>>,
+    before: Option<Arc<Unit>>,
+    wants: Option<Arc<Unit>>,
 }
 
 /// Service file which includes information on how to start, stop, kill or
@@ -121,4 +121,22 @@ struct Install {
 
 Each of the structures above are meant to parse sections `[unit]`, `[install]`
 and `[service]` in a systemd config file.
+
+Although, there is complex relationship between these unit files, we are just
+going to put them in a sequence for now. So we also create another structure.
+
+```rust
+/// A collection of all the unit files in a system.
+struct AllUnits {
+    units: Vec<Unit>,
+}
+```
+
+Parsing Unit files
+----------------------
+
+Now, that we have a very basic structure ready, let's start parsing the systemd
+unit files. We are going to use [rust-init][5] package to parse the files since
+they are simple ini files.
+
 
