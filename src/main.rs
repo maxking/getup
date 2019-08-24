@@ -1,23 +1,31 @@
 use ini::Ini;
+use std::sync::Arc;
+
+/// A collection of all the unit files in a system.
+struct AllUnits {
+    units: Vec<Unit>,
+}
+
+
 
 /// A Unit is a systemd unit which could contain a Service. It also includes
 /// Install which can be used to determine how this service is Installed on a
 /// system.
 struct Unit {
     /// Path to the systemd config file on the host from where it was read.
-    Path: String,
+    path: String,
     /// Description of the Unit.
-    Description: String,
+    description: String,
     /// Man pages/documentation for the Unit.
-    Documentation: String,
+    documentation: String,
     /// Associated Service.
-    Service: Service,
+    service: Service,
     /// How to install this Unit.
-    Install: Install,
+    install: Install,
 
-    After: Unit,
-    Before: Unit,
-    Wants: Unit,
+    after: Arc<Unit>,
+    before: Arc<Unit>,
+    wants: Arc<Unit>,
 }
 
 /// Service file which includes information on how to start, stop, kill or
@@ -25,25 +33,25 @@ struct Unit {
 struct Service {
     /// There are different types of Services, for now, all I know is that they
     /// are different kinds of them.
-    Type: String,
+    service_type: String,
     /// Command to start a daemon, can be a command with arguments, delimited
     /// by empty whitespace.
-    ExecStart: String,
+    exec_start: String,
     /// Command to reload the configuration for the daemon.
-    ExecReload: String,
+    exec_reload: String,
     /// Command to restart the service.
-    Restart: RestartMethod,
+    restart: RestartMethod,
     /// Limit the capabilities of the child spawned process.
-    CapabilityBoundingSet: String,
+    capability_bounding_set: String,
     /// Disable the daemon process from gaining any new privileges.
-    NoNewPrivs: bool,
+    no_new_privs: bool,
 
-    MemoryDenyWriteExecute: bool,
-    KillMode: KillModeEnum,
+    memory_deny_write_execute: bool,
+    kill_mode: KillModeEnum,
 }
 
 struct Install {
-    WantedBy: String,
+    wanted_by: String,
 }
 
 enum RestartMethod {
@@ -56,7 +64,6 @@ enum KillModeEnum {
     Process,
     All,
 }
-
 
 fn main() {
     println!("Hello, world!");
