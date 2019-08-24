@@ -139,4 +139,43 @@ Now, that we have a very basic structure ready, let's start parsing the systemd
 unit files. We are going to use [rust-init][5] package to parse the files since
 they are simple ini files.
 
+[This blog post][6] by the author of systemd explains in great detail what does
+a systemd unit file include and what the use case of each section is. While it
+only includes basic information, that should be enough for us to get started.
 
+[6]: http://0pointer.de/blog/projects/systemd-for-admins-3.html
+
+Some small notes from the above blog:
+
+- `ExecStart` is the path to the binary including any command line flags and if
+  the daemon uses double-forking, you need to specify `Type=forking` too.
+
+- If daemon doesn't use double-forking, which is actually not needed in case of
+  an active process manager, they can just run the main process and use
+  `Type=dbus` and a `BusName=bus.name` because that is how systemd infers that
+  the process as finished starting up.
+
+- There are some special systemd units `systemd.special(7)` which has special
+  meanings for standardization reasons, like `syslog.target` for any
+  implementation of _syslog_.
+
+Runlevels and Targets
+-------------------------
+
+Older SysV init scripts had a [concept of run-level][7] to serialize the startup of
+daemons into logical groups. Of the run levels, some interesting ones are:
+
+- runlevel 1: single user text mode
+- runlevel 2: not defined by default, can be user defined
+- runlevel 3: multi-user console mode
+- runlevel 4: not defined by default, can be user defined
+- runlevel 5: graphical mode
+- runlevel 6: reboot
+
+[7]: https://www-uxsup.csx.cam.ac.uk/pub/doc/redhat/enterprise3/rhel-rg-en-3/s1-boot-init-shutdown-sysv.html
+
+systemd converts these into what it calls _targets_. There is
+`multi-user.target` which is supported to be same as runlevel 3 and then there
+is `graphical.target` to represent runlevel 5. I like this better because it is
+kind of obvious what these targets mean, without having to lookup the
+definition of various runlevels.
