@@ -242,5 +242,5 @@ impl Service {
 }
 ```
 
-Finally, we implement a `main()` in `runstone.rs` to tie all the pieces
+Finally, we implement a `main()` in `runone.rs` to tie all the pieces
 together.
