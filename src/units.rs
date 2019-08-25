@@ -1,5 +1,5 @@
 use ini::Ini;
-use std::process::{Child, Command};
+use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 
 /// A collection of all the unit files in a system.
@@ -127,6 +127,7 @@ impl Service {
         if exec_args.len() > 1 {
             cmd.args(&exec_args[1..]);
         }
+        cmd.stdout(Stdio::piped());
 
         self.child = Some(cmd.spawn().expect(&format!(
             "failed to spawn child process for {:?}",
