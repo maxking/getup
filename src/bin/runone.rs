@@ -23,5 +23,10 @@ fn main() {
         unit.service.exec_start
     );
     unit.service.start();
-    ()
+    if let Some(mut child) = unit.service.child {
+        child.wait().expect("failed to wait on the child");
+    } else {
+        println!("no child process to wait on");
+    }
+
 }
