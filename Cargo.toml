@@ -3,8 +3,18 @@ name = "getup"
 version = "0.1.0"
 authors = ["Abhilash Raj <raj.abhilash1@gmail.com>"]
 edition = "2018"
+license = "Apache-2.0"
+homepage = "https://github.com/maxking/getup"
+repository = "https://github.com/maxking/getup"
+description = """
+Getup, an init system meant for Linux.
+"""
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 rust-ini = "0.13.0"
+
+[lib]
+name = "getup"
+path = "src/lib.rs"

@@ -179,3 +179,16 @@ systemd converts these into what it calls _targets_. There is
 is `graphical.target` to represent runlevel 5. I like this better because it is
 kind of obvious what these targets mean, without having to lookup the
 definition of various runlevels.
+
+Milestone 1
+-------------
+
+So, the first step for this tool is going to be a CLI which can be used to
+parse a systemd unit file, spawn off a process using it and then keep
+monitoring it for crashes. It does not accept any other arguments and there
+would be no way to signal it to stop or restart the process without killing the
+tool itself.
+
+In rust, you can add commands/binaries by creating a `src/bin/` directory. Our
+tool is called `runone` and so we create `src/bin/runone.rs`.
+
