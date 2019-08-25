@@ -192,3 +192,55 @@ tool itself.
 In rust, you can add commands/binaries by creating a `src/bin/` directory. Our
 tool is called `runone` and so we create `src/bin/runone.rs`.
 
+Implementation
+-----------------
+
+Now, we need to setup a few things to get to out Milestone. First, we need to
+be able to parse the unit file, here is a small example:
+
+```
+[Unit]
+Description=GNU Mailman
+Documentation=man:mailman(1)
+
+[Service]
+Type=notify
+ExecStart=/home/maxking/.virtualenvs/mm3/bin/master
+ExecReload=/home/maxking/.virtualenvs/mm3/bin/mailman restart
+
+[Install]
+WantedBy=multi-user.target
+```
+
+We implement the following methods for the `Unit` struct:
+
+```rust
+impl Unit {
+  pub fn from_unitfile(inifile: &str) -> Unit {
+    ...
+  }
+}
+```
+
+Once we have the parsing done and we are able to generate the `Unit` struct, we
+then need the ability to use it to start a process. We implement `start()`
+method in the `Service` struct since it has all the information to start an
+monitor a process.
+
+```rust
+impl Service {
+  /// status returns the current status of this service.
+  pub fn status(&self) -> CurrState {
+    self.current_state
+  }
+  
+  /// start boots up a service and sets it's current status, which
+  /// is why it needs a mutable reference to the object.
+  pub fn start(&mut self) {
+     ...
+  }
+}
+```
+
+Finally, we implement a `main()` in `runstone.rs` to tie all the pieces
+together.
