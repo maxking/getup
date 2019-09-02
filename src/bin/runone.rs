@@ -1,8 +1,9 @@
-use getup::units;
+use getup::{units, monitor};
 /// run one is a script which reads a systems configuration path and spawns off
 /// the service and keeps on monitoring it.
 use std::env;
 use std::process;
+use std::thread;
 
 fn usage(args: &Vec<String>) {
     println!("Expected 1 parameter, got {:?}", args);
@@ -23,10 +24,12 @@ fn main() {
         unit.service.exec_start
     );
     unit.service.start();
-    if let Some(mut child) = unit.service.child {
-        child.wait().expect("failed to wait on the child");
-    } else {
-        println!("no child process to wait on");
-    }
 
+    if let Some(mut child) = unit.service.child {
+        let mon_thread = thread::spawn(move || {
+            monitor::monitor_proc(&mut child);
+        });
+
+        let _ = mon_thread.join();
+    }
 }

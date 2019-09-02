@@ -244,3 +244,53 @@ impl Service {
 
 Finally, we implement a `main()` in `runone.rs` to tie all the pieces
 together.
+
+
+Monitoring
+------------
+
+Now, we have a working implementation of a daemon which boots up and starts up
+the service by parsing a systemd unit file. Next step is look out for the
+process that was just spun off.
+
+So because parents have to take care of their children, Rust's
+`std::process:Child` includes a method `try_wait` method which is non-blocking
+method which returns the exit status of the process if it exitted and otherwise
+just returns a `None` value. We can use this to create a simple infinite loop
+in a thread to monitor this process.
+
+```rust
+pub fn monitor_proc(child: &mut Child) -> Option<ExitStatus> {
+    let thirty_millis = time::Duration::from_millis(30);
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                println!("Child proc with PID {:?} exitted with status {:?}", child.id(), status);
+                return Some(status);
+            },
+            Ok(None) => {
+                // This really means that the process hasn't exitted yet. In
+                // which case, we don't do anything.
+                thread::sleep(thirty_millis);
+                print!(".");
+                io::stdout().flush().unwrap();
+                continue
+            },
+            Err(e) => {
+                println!("Failed to wait for the child process: {:?}", e);
+                return None;
+            }
+        }
+    }
+}
+```
+
+
+A few things about the code above, it takes in a `std::process::Child` and
+returns an `Option<ExitStatus>`. It returns the exit status if the processes
+exitted and returns None in cases where it wasn't able to wait for the process
+for whatever reason.
+
+We print out a single `.` for the feedback purposes to make sure it is actually
+working, I get impatient :)
+
