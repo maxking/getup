@@ -31,7 +31,7 @@ fn main() {
     let shared = Arc::new(AtomicBool::new(false));
     let shared_clone = shared.clone();
 
-    ctrlc::set_handler(move || {
+    let _ = ctrlc::set_handler(move || {
         // If the user wants to exit, raise the flag to signal the running
         // thread to kill the child process.
         shared.store(true, Ordering::Relaxed);
