@@ -6,6 +6,7 @@ use getup::{
 /// run one is a script which reads a systems configuration path and spawns off
 /// the service and keeps on monitoring it.
 use std::env;
+use std::os::unix::process::ExitStatusExt;
 use std::process;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -59,26 +60,24 @@ fn main() {
             }
             RestartMethod::OnFailure => {
                 println!("Restart policy is Restart::OnFailure...");
-                if unlocked_service.exit_status.unwrap().success() {
-                    unlocked_service.start();
-                } else {
-                    println!("Exitted with exit code 0, so not going to restart.");
-                    break;
+                match unlocked_service.exit_status.unwrap().code() {
+                    Some(code) => {
+                        if code != 0 {
+                            unlocked_service.start();
+                        } else {
+                            println!("Exitted with exit code 0, so not going to restart.");
+                            break;
+                        }
+                    }
+                    None => {
+                        println!(
+                            "Exitted with signal: {:?}, so not going to restart.",
+                            unlocked_service.exit_status.unwrap().signal().unwrap()
+                        );
+                        break;
+                    }
                 }
             }
         }
     }
-    // match unit.service.lock().unwrap().restart_policy {
-    //     units::RestartMethod::Never => break,
-    //     units::RestartMethod::Always => {
-    //         println!("Restart policy for {:?} is RestartMethod::Always, restarting it...", unit.description);
-    //         unit.service.lock().unwrap().start();
-    //     },
-    //     units::RestartMethod::OnFailure => {
-    //         if unit.service.lock().unwrap().exit_status.unwrap().code().unwrap() != 0 {
-    //             println!("Restart policy is RestartMethod::OnFailure, exit code was: {:?}", unit.service.lock().unwrap().exit_status);
-    //             unit.service.lock().unwrap().start();
-    //         }
-    //     },
-    // }
 }

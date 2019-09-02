@@ -648,3 +648,42 @@ does not restart the process when the policy is `Never`. Do however note that
 this still doesn't solve the problem of, what happens when I manually try to
 stop a process and it doesn't get restarted, even if it has a `restart_policy`
 that allows it to be started. Just let me kill the child process please?!
+
+
+Maybe, third time is the charm! So, it is possible to determine if a process
+was terminated by a signal or if it died of natural causes. We can use this
+information to check if the process crashed, or if it was someone (including,
+us) who stopped the process:
+
+```rust
+// rustone.rs# main()
+
+        match unlocked_service.restart_policy {
+            RestartMethod::Never => break,
+            RestartMethod::Always => {
+                println!("Restart policy is RestartMethod::Always...");
+                unlocked_service.start();
+            }
+            RestartMethod::OnFailure => {
+                println!("Restart policy is Restart::OnFailure...");
+                match unlocked_service.exit_status.unwrap().code() {
+                    Some(code) => {
+                        if code != 0 {
+                            unlocked_service.start();
+                        } else {
+                            println!("Exitted with exit code 0, so not going to restart.");
+                            break;
+                        }
+                    }
+                    None => {
+                        println!(
+                            "Exitted with signal: {:?}, so not going to restart.",
+                            unlocked_service.exit_status.unwrap().signal().unwrap()
+                        );
+                        break;
+                    }
+                }
+            }
+        }
+
+```
