@@ -1,5 +1,6 @@
 use ini::Ini;
-use std::process::{Child, Command, Stdio};
+use std::io;
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::Arc;
 
 /// A collection of all the unit files in a system.
@@ -111,12 +112,20 @@ pub struct Service {
     /// What is the current state of this service.
     pub current_state: CurrState,
     /// The handle to the child process.
-    pub child: Option<Child>,
+    child: Option<Child>,
 }
 
 impl Service {
     pub fn status(&self) -> CurrState {
         self.current_state
+    }
+
+    pub fn child_id(&self) -> u32 {
+        self.child.as_ref().unwrap().id()
+    }
+
+    pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
+        self.child.as_mut().unwrap().try_wait()
     }
 
     pub fn start(&mut self) {
@@ -135,7 +144,11 @@ impl Service {
         )));
     }
 
-    pub fn stop() {}
+    pub fn send_term(&mut self) {}
+
+    pub fn kill(&mut self) -> io::Result<()> {
+        self.child.as_mut().unwrap().kill()
+    }
 
     pub fn reload() {}
 

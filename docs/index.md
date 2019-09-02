@@ -13,7 +13,7 @@ system.
 The purpose of this project is to just learn how init systems work and is
 mostly an academic exercise. There is a low possibility for this to become a
 prod level thing one day, but I can be convinced otherwise if this becomes
-something better than existing systems. 
+something better than existing systems.
 
 Another motivation to do this is learn Rust, which is the new systems
 programming language from Mozilla. So, let's begin.
@@ -39,7 +39,7 @@ project. For starters, I want to re-use the systemd configuration files because
 it is the easiest way to replace it on a running system since almost all of
 them now ship with systemd and the config.
 
-The MVP for this project would include: 
+The MVP for this project would include:
 
 - Ability to parse all the systemd configs and startup all the daemons
 - Ability to watch, restart, stop and manage daemon processes
@@ -233,7 +233,7 @@ impl Service {
   pub fn status(&self) -> CurrState {
     self.current_state
   }
-  
+
   /// start boots up a service and sets it's current status, which
   /// is why it needs a mutable reference to the object.
   pub fn start(&mut self) {
@@ -260,6 +260,7 @@ just returns a `None` value. We can use this to create a simple infinite loop
 in a thread to monitor this process.
 
 ```rust
+// monitor.rs
 pub fn monitor_proc(child: &mut Child) -> Option<ExitStatus> {
     let thirty_millis = time::Duration::from_millis(30);
     loop {
@@ -294,3 +295,105 @@ for whatever reason.
 We print out a single `.` for the feedback purposes to make sure it is actually
 working, I get impatient :)
 
+
+Stopping Process
+--------------------
+
+So, now we have an infinite loop monitoring our process and can print out
+information when the processes exits. This is neat for when we would need to
+restart the process. But, before that, we need to be able to forcefully stop a
+process.
+
+In Unix, processes uses various kinds of signals (`man kill`) to signal child
+processes to perform actions. It is a form of Inter Process Communication (IPC)
+to allow processes to talk to each other.
+
+There are many signals defined in modern Linux systems that can be found by
+looking at the output of `kill -l` command which lists all the
+signals. However, the interesting one for us right now is `SIGTERM` and
+`SIGKILL`.
+
+- `SIGTERM` basically means asking the child process to gracefully
+  exit. Usually, the init and supervisor process waits for a certain time after
+  this signal is sent to give the child process time to clean up.
+
+- `SIGKILL` will forcefully kill the process. This is used by if the child
+  process didn't gracefully exit by the end of timeout given by the
+  supervisor/parent process.
+
+Since child processes are expected to perform some actions based on the type of
+the signal, processes usually register signal handlers so they can do the
+required action whenever a signal arrives. A process can handle all the signals
+except `SIGKILL`, which never really is delivered to the process and instead
+kills it.
+
+So, let's try to write a signal handler for our supervisor process which will
+ask the child process to terminate and then kill it if you press `Ctrl+C` on
+the terminal. On Unix systems, a `Ctrl+C` on terminal when a process is running
+sends them a `SIGINT` signal. We can attach our handler to this signal using a
+Rust crate `ctrlc` which is meant for this exact purpose.
+
+
+Signal Handling in Rust
+-----------------------------
+
+```rust
+// runone.rs#main()
+    let shared = Arc::new(AtomicBool::new(false));
+    let shared_clone = shared.clone();
+
+    ctrlc::set_handler(move || {
+        // If the user wants to exit, raise the flag to signal the running
+        // thread to kill the child process.
+        shared.store(true, Ordering::Relaxed);
+    });
+```
+
+Note that `ctrlc` is a very specific crate which lets us handle *only*
+`SIGINT`, but for now, we only need that. In future, there would be a need for
+a more general mechanism which allows handling *any* signal.
+
+What does out signal handler do? It basically just raises a flag to let the
+infinite loop know that we got an interrupt and it should try to stop the
+process. Now, because in Rust one object can't be reference from two different
+threads, we use the `Arc` type, which stands for Atomic Reference Count. This
+ads ref counting on the contained object when you do a `.clone()` and returns a
+new object that you can use to access the same value from different
+thread. Neat.
+
+Out value is `AtomicBool`, which is a simple boolean datatype with Atomic
+properties and is thread safe. We need an Atomic type because we are sharing
+the reference in two threads and don't want to shoot ourselves in the foot by
+causing a race condition. For now, we know that the monitoring thread only
+needs to read this flag.
+
+
+```rust
+// monitor.rs#monitor_proc()
+
+  loop {
+        let ten_sec = time::Duration::from_millis(10000);
+
+        if shared.load(Ordering::Relaxed) {
+            // Shared is a flag for parent process to signal this process to
+            // terminate.
+            println!("Killing the child process.");
+            service.send_term();
+            thread::sleep(ten_sec);
+            service.kill();
+        }
+		
+		match child.try_wait() {
+		    ...
+		}
+   }
+```
+
+We passed the `shared_clone` Arc object to the monitoring thread and it checks
+for the flag in every loop to make sure if it needs to terminal the process. 
+
+Rust's child abstraction, `std::process::Child` doesn't allow sending random
+signals to a process in a platform independent way yet, so I don't know how to
+simply send a `SIGTERM` to the child yet, but it does include `.kill()` method
+which will send a `SIGKILL`. For now, we will just noop in the `send_term()`
+and come back to it later. I know, we are being really really bad parents.
