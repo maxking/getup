@@ -295,6 +295,9 @@ for whatever reason.
 We print out a single `.` for the feedback purposes to make sure it is actually
 working, I get impatient :)
 
+We will take actions based on the `RestartPolicy` later, for now, we just
+lookout for the process and report the state to the user.
+
 
 Stopping Process
 --------------------
@@ -382,7 +385,7 @@ needs to read this flag.
             thread::sleep(ten_sec);
             service.kill();
         }
-		
+
 		match child.try_wait() {
 		    ...
 		}
@@ -390,10 +393,216 @@ needs to read this flag.
 ```
 
 We passed the `shared_clone` Arc object to the monitoring thread and it checks
-for the flag in every loop to make sure if it needs to terminal the process. 
+for the flag in every loop to make sure if it needs to terminal the process.
 
 Rust's child abstraction, `std::process::Child` doesn't allow sending random
 signals to a process in a platform independent way yet, so I don't know how to
 simply send a `SIGTERM` to the child yet, but it does include `.kill()` method
 which will send a `SIGKILL`. For now, we will just noop in the `send_term()`
 and come back to it later. I know, we are being really really bad parents.
+
+
+Restart Policy
+-----------------
+
+Among other responsibilities of an init system, it also needs to restart a
+service when it dies. systemd allows users to specify a `RestartMethod` which
+defines the policy on when should the process be restarted. The possible values
+are:
+
+- OnFailure
+- Always
+- Never
+
+In Rust, we define these values using an Enum:
+
+```rust
+#[derive(Debug, Copy, Clone)]
+pub enum RestartMethod {
+    OnFailure,
+    Always,
+    Never,
+}
+```
+
+Sharing references to Object across threads
+------------------------------------------------------
+
+Rust is fun. It provides guarantees for memory safety for compiled programs
+without a runtime or GC. It is nice, but honestly quite frustating to use at
+time.
+
+This problem came up when trying to implement the Restart Policy for our toy
+init system. We spin off the monitoring of process is a separate thread so we
+can continue with doing other stuff. In order to do that, we *move* the `struct
+Service` to the thread, which is one the ways to use the `thread::spawn` API
+with a closure definition:
+
+```rust
+// rustone.rs#main()
+
+    let mon_thread = thread::spawn(move || {
+        monitor::monitor_proc(&mut unit.service, &shared_clone);
+    });
+```
+
+We need to share a mutable reference because the monitoring process sets the
+correct `exit_status` and `current_state` of the `Service`.
+
+```rust
+// monitor.rs#monitor_proc()
+
+            Ok(Some(status)) => {
+                println!(
+                    "Child proc with PID {:?} exitted with status {:?}",
+                    service.child_id(),
+                    status
+                );
+                service.current_state = CurrState::Stopped;
+                service.exit_status = Some(status);
+            }
+```
+
+To handle the restart, what I initially thought, was I'll just use the
+`unit.service.exit_status` to determine how the process exitted and then
+restart based on the policy. Here is a simple example, which doesn't do much
+except print in the parent thread how the child exitted:
+
+```rust
+// rustone.rs#main()
+
+    let mon_thread = thread::spawn(move || {
+        monitor::monitor_proc(&mut unit.service, &shared_clone);
+    });
+
+    let _ = mon_thread.join();
+
+    println!("Process exitted with status: {:?}", unit.service.exit_status);
+```
+
+
+But guess what? Rust won't let me compile this program:
+
+```
+
+error[E0382]: borrow of moved value: `unit`
+  --> src/bin/runone.rs:46:51
+   |
+22 |     let mut unit = units::Unit::from_unitfile(&args[1]);
+   |         -------- move occurs because `unit` has type `getup::units::Unit`, which does not implement the `Copy` trait
+...
+40 |     let mon_thread = thread::spawn(move || {
+   |                                    ------- value moved into closure here
+41 |         monitor::monitor_proc(&mut unit.service, &shared_clone);
+   |                                    ---- variable moved due to use in closure
+...
+46 |     println!("Process exitted with status: {:?}", unit.service.exit_status);
+   |                                                   ^^^^^^^^^^^^^^^^^^^^^^^^ value borrowed here after move
+
+error: aborting due to previous error
+```
+
+What is going on here? Well, like we said, the function `thread::spawn` moves
+the `unit.service` into the new thread and once it is done with it, no one else
+can actually do anything with it since it has died with the monitoring
+thread. There is no simple way to return the reference back, like you could do
+with a function call.
+
+Note that, given how the code is written, it may seem like it is thread safe. I
+spawn a thread, I move a reference to it, I wait for it to finish and then
+finally I want to re-gain control of the object. There are clearly no two
+threads trying to mutate or mutate + read in separate threads to ever cause a
+race-condition.
+
+> spawn launches independent threads. Rust has no way of knowing how long the
+> child thread will run, so it assumes the worst: it assumes the child thread may
+> keep running even after the parent thread has finished and all values in the
+> parent thread are gone. Obviously, if the child thread is going to last that
+> long, the closure it’s running needs to last that long too. But this closure
+> has a bounded lifetime: it depends on the reference glossary, and references
+> don’t last forever.
+>
+> Note that Rust is right to reject this code! The way we’ve written this
+> function, it is possible for one thread to hit an I/O error, causing
+> process_files_in_parallel to bail out before the other threads are
+> finished. Child threads could end up trying to use the glossary after the main
+> thread has freed it. It would be a race—with undefined behavior as the prize,
+> if the main thread should win. Rust can’t allow this.
+>                - Chater 19, Programming Rust by Jason Orendorff, Jim Blandy
+
+
+I spent some time reading more about this behavior and found this in the
+[Programming Rust by Jason Orendorff, Jim Blandy][prog_rust] to figure out why
+doesn't rust allow this. It moves on to explain how to use `Arc` to share
+references across threads in a thread safe manner with reference counting so it
+doesn't get freed while there are references to the object. There also exists
+`Rc` type which cab be used for reference counting in a single thread, which
+has lower overhead than `Arc` if you don't need to pass along the reference
+across threads.
+
+[prog_rust]: https://www.amazon.com/Programming-Rust-Fast-Systems-Development/dp/1491927283/
+
+To achieve this, we changed `service` to be an Arc object, with a Mutex, so
+that it is safe to mutate from two threads, with proper locking of course:
+
+```rust
+// units.rs
+
+pub struct Service {
+    ...
+	service: Arc<Mutex<Service>>,
+	...
+}
+```
+
+And then we can pass a reference-counted reference to `service` to the
+monitoring thread and it can safely be dropped when the thread ends:
+
+```rust
+// runone.rs#main()
+
+    let service_clone = unit.service.clone();
+
+    let mon_thread = thread::spawn(move || {
+        monitor::monitor_proc(&service_clone, &shared_clone);
+    });
+
+    let _ = mon_thread.join();
+
+    println!("Process exitted with status: {:?}", unit.service.lock().unwrap().exit_status);
+```
+
+And yay! This compiles and let me use `unit.service` after having moved it to
+the monitoring thread.
+
+Restart Policy: Back
+-------------------------
+
+Now, let's try to solve our restart-policy problems. We will start simple,
+assume that all process want to be restarted after they die. We can hook up the
+actual policy later.
+
+```rust
+//runone.rs#main()
+
+    loop {
+        let service_clone = unit.service.clone();
+        let shared_shared_clone = shared.clone();
+
+        let mon_thread = thread::spawn(move | | {
+            monitor::monitor_proc(&service_clone, &shared_shared_clone);
+        });
+
+        let _ = mon_thread.join().expect("Failed to join the threads");
+        unit.service.lock().unwrap().start();
+    }
+
+```
+
+So, this is simple, we basically loop around waiting for the child process to
+exit and just restart it. That is all.
+
+One problem with this approach of restarting the process always is that there
+is really no way to exit this infinite loop, we will just keep spinning and
+spinning. Even when we use the signal handler we used above to signal the child
+process to exit, we still end up restarting it.

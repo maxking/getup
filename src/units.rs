@@ -2,6 +2,7 @@ use ini::Ini;
 use std::io;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::Arc;
+use std::sync::Mutex;
 
 /// A collection of all the unit files in a system.
 pub struct AllUnits {
@@ -20,7 +21,7 @@ pub struct Unit {
     /// Man pages/documentation for the Unit.
     pub documentation: String,
     /// Associated Service.
-    pub service: Service,
+    pub service: Arc<Mutex<Service>>,
     /// How to install this Unit.
     pub install: Install,
 
@@ -56,7 +57,7 @@ impl Unit {
                 .get("Documentation")
                 .expect("failed to get Documentation from Unit")
                 .to_string(),
-            service: Service {
+            service: Arc::new(Mutex::new(Service {
                 service_type: service
                     .get("Type")
                     .expect("failed to get Type from Service")
@@ -76,7 +77,9 @@ impl Unit {
                 capability_bounding_set: None,
                 current_state: CurrState::Stopped,
                 child: None,
-            },
+                exit_status: None,
+                restart_policy: RestartMethod::Always,
+            })),
             install: Install {
                 wanted_by: None,
                 alias: match install.get("Alias") {
@@ -113,6 +116,9 @@ pub struct Service {
     pub current_state: CurrState,
     /// The handle to the child process.
     child: Option<Child>,
+
+    pub restart_policy: RestartMethod,
+    pub exit_status: Option<ExitStatus>
 }
 
 impl Service {
@@ -146,8 +152,10 @@ impl Service {
 
     pub fn send_term(&mut self) {}
 
-    pub fn kill(&mut self) -> io::Result<()> {
-        self.child.as_mut().unwrap().kill()
+    pub fn kill(&mut self) {
+        println!("Trying to kill service started by: {:?}", self.exec_start);
+        self.child.as_mut().unwrap().kill();
+        println!("Killed child service started by: {:?}", self.exec_start);
     }
 
     pub fn reload() {}

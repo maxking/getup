@@ -1,35 +1,40 @@
-use std::borrow::BorrowMut;
-use std::io::{self, Write};
 /// monitor.rs includes methods to monitor a running child process.
-use std::process::{Child, ExitStatus};
+use std::io::{self, Write};
+use std::process::ExitStatus;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::Mutex;
 use std::{thread, time};
+use crate::units::{Service, CurrState};
 
-use crate::units::Service;
 
-pub fn monitor_proc(service: &mut Service, shared: &AtomicBool) -> Option<ExitStatus> {
+pub fn monitor_proc(service: &Mutex<Service>, shared: &AtomicBool) {
     let thirty_millis = time::Duration::from_millis(30);
     let ten_sec = time::Duration::from_millis(10000);
+    let mut unlocked_service = service.lock().unwrap();
 
     loop {
         if shared.load(Ordering::Relaxed) {
             // Shared is a flag for parent process to signal this process to
             // terminate.
-            println!("Killing the child process.");
-            service.send_term();
+            // service.lock().unwrap().send_term();
             thread::sleep(ten_sec);
-            service.kill();
+            unlocked_service.kill();
+
+            // Re-raise the flag just to make sure we don't enter this same
+            // loop next time over the loop.
+            shared.store(true, Ordering::Relaxed);
         }
 
-        match service.try_wait() {
+        match unlocked_service.try_wait() {
             Ok(Some(status)) => {
                 println!(
                     "Child proc with PID {:?} exitted with status {:?}",
-                    service.child_id(),
+                    unlocked_service.child_id(),
                     status
                 );
-                return Some(status);
+                unlocked_service.exit_status = Some(status);
+                unlocked_service.current_state = CurrState::Stopped;
+                break;
             }
             Ok(None) => {
                 // This really means that the process hasn't exitted yet. In
@@ -42,7 +47,6 @@ pub fn monitor_proc(service: &mut Service, shared: &AtomicBool) -> Option<ExitSt
             }
             Err(e) => {
                 println!("Failed to wait for the child process: {:?}", e);
-                return None;
             }
         }
     }

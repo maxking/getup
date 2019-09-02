@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 
+
 fn usage(args: &Vec<String>) {
     println!("Expected 1 parameter, got {:?}", args);
     println!("\nUsage: runone example.service");
@@ -24,9 +25,9 @@ fn main() {
     println!("{:?}", unit);
     println!(
         "Starting up the service using command: {:?}",
-        unit.service.exec_start
+        unit.service.lock().unwrap().exec_start
     );
-    unit.service.start();
+    unit.service.lock().unwrap().start();
 
     let shared = Arc::new(AtomicBool::new(false));
     let shared_clone = shared.clone();
@@ -34,12 +35,33 @@ fn main() {
     let _ = ctrlc::set_handler(move || {
         // If the user wants to exit, raise the flag to signal the running
         // thread to kill the child process.
-        shared.store(true, Ordering::Relaxed);
+        shared_clone.store(true, Ordering::Relaxed);
     });
 
-    let mon_thread = thread::spawn(move || {
-        monitor::monitor_proc(&mut unit.service, &shared_clone);
-    });
 
-    let _ = mon_thread.join();
+    loop {
+        let service_clone = unit.service.clone();
+        let shared_shared_clone = shared.clone();
+
+        let mon_thread = thread::spawn(move | | {
+            monitor::monitor_proc(&service_clone, &shared_shared_clone);
+        });
+
+        let _ = mon_thread.join().expect("Failed to join the threads");
+        println!("Child proc exitted, restarting it...");
+        unit.service.lock().unwrap().start();
+    }
+    // match unit.service.lock().unwrap().restart_policy {
+    //     units::RestartMethod::Never => break,
+    //     units::RestartMethod::Always => {
+    //         println!("Restart policy for {:?} is RestartMethod::Always, restarting it...", unit.description);
+    //         unit.service.lock().unwrap().start();
+    //     },
+    //     units::RestartMethod::OnFailure => {
+    //         if unit.service.lock().unwrap().exit_status.unwrap().code().unwrap() != 0 {
+    //             println!("Restart policy is RestartMethod::OnFailure, exit code was: {:?}", unit.service.lock().unwrap().exit_status);
+    //             unit.service.lock().unwrap().start();
+    //         }
+    //     },
+    // }
 }
