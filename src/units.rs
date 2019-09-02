@@ -78,7 +78,7 @@ impl Unit {
                 current_state: CurrState::Stopped,
                 child: None,
                 exit_status: None,
-                restart_policy: RestartMethod::Always,
+                restart_policy: RestartMethod::OnFailure,
             })),
             install: Install {
                 wanted_by: None,
@@ -118,7 +118,7 @@ pub struct Service {
     child: Option<Child>,
 
     pub restart_policy: RestartMethod,
-    pub exit_status: Option<ExitStatus>
+    pub exit_status: Option<ExitStatus>,
 }
 
 impl Service {

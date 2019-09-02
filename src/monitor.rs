@@ -1,11 +1,10 @@
+use crate::units::{CurrState, Service};
 /// monitor.rs includes methods to monitor a running child process.
 use std::io::{self, Write};
 use std::process::ExitStatus;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::{thread, time};
-use crate::units::{Service, CurrState};
-
 
 pub fn monitor_proc(service: &Mutex<Service>, shared: &AtomicBool) {
     let thirty_millis = time::Duration::from_millis(30);

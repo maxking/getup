@@ -607,3 +607,44 @@ One problem with this approach of restarting the process always is that there
 is really no way to exit this infinite loop, we will just keep spinning and
 spinning. Even when we use the signal handler we used above to signal the child
 process to exit, we still end up restarting it.
+
+But let's make this slightly better than it is right now:
+
+```rust
+// runone.rs#main()
+
+    loop {
+        let service_clone = unit.service.clone();
+        let shared_shared_clone = shared.clone();
+
+        let mon_thread = thread::spawn(move | | {
+            monitor::monitor_proc(&service_clone, &shared_shared_clone);
+        });
+
+        let _ = mon_thread.join().expect("Failed to join the threads");
+
+        let mut unlocked_service = unit.service.lock().unwrap();
+        match unlocked_service.restart_policy {
+            RestartMethod::Never => break,
+            RestartMethod::Always => {
+                println!("Restart policy is RestartMethod::Always...");
+                unlocked_service.start();
+            },
+            RestartMethod::OnFailure => {
+                println!("Restart policy is Restart::OnFailure...");
+                if unlocked_service.exit_status.unwrap().success() {
+                    unlocked_service.start();
+                } else {
+                    println!("Exitted with exit code 0, so not going to restart.");
+                    break;
+                }
+            },
+        }
+    }
+```
+
+This is a slightly better version, which checks for the restart policy, and
+does not restart the process when the policy is `Never`. Do however note that
+this still doesn't solve the problem of, what happens when I manually try to
+stop a process and it doesn't get restarted, even if it has a `restart_policy`
+that allows it to be started. Just let me kill the child process please?!

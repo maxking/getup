@@ -1,5 +1,8 @@
 use ctrlc;
-use getup::{monitor, units};
+use getup::{
+    monitor,
+    units::{self, RestartMethod},
+};
 /// run one is a script which reads a systems configuration path and spawns off
 /// the service and keeps on monitoring it.
 use std::env;
@@ -7,7 +10,6 @@ use std::process;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-
 
 fn usage(args: &Vec<String>) {
     println!("Expected 1 parameter, got {:?}", args);
@@ -38,18 +40,33 @@ fn main() {
         shared_clone.store(true, Ordering::Relaxed);
     });
 
-
     loop {
         let service_clone = unit.service.clone();
         let shared_shared_clone = shared.clone();
 
-        let mon_thread = thread::spawn(move | | {
+        let mon_thread = thread::spawn(move || {
             monitor::monitor_proc(&service_clone, &shared_shared_clone);
         });
 
         let _ = mon_thread.join().expect("Failed to join the threads");
-        println!("Child proc exitted, restarting it...");
-        unit.service.lock().unwrap().start();
+
+        let mut unlocked_service = unit.service.lock().unwrap();
+        match unlocked_service.restart_policy {
+            RestartMethod::Never => break,
+            RestartMethod::Always => {
+                println!("Restart policy is RestartMethod::Always...");
+                unlocked_service.start();
+            }
+            RestartMethod::OnFailure => {
+                println!("Restart policy is Restart::OnFailure...");
+                if unlocked_service.exit_status.unwrap().success() {
+                    unlocked_service.start();
+                } else {
+                    println!("Exitted with exit code 0, so not going to restart.");
+                    break;
+                }
+            }
+        }
     }
     // match unit.service.lock().unwrap().restart_policy {
     //     units::RestartMethod::Never => break,
