@@ -528,6 +528,7 @@ race-condition.
 > finished. Child threads could end up trying to use the glossary after the main
 > thread has freed it. It would be a race—with undefined behavior as the prize,
 > if the main thread should win. Rust can’t allow this.
+>
 >                - Chater 19, Programming Rust by Jason Orendorff, Jim Blandy
 
 
