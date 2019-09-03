@@ -65,7 +65,9 @@ fn main() {
                         if code != 0 {
                             unlocked_service.start();
                         } else {
-                            println!("Exitted with exit code 0, so not going to restart.");
+                            println!(
+                                "Exitted with exit code 0, so not going to restart."
+                            );
                             break;
                         }
                     }

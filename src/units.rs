@@ -37,9 +37,8 @@ pub struct Unit {
 impl Unit {
     pub fn from_unitfile(inifile: &str) -> Unit {
         let conf = Ini::load_from_file(inifile).unwrap();
-        let unit = conf
-            .section(Some("Unit".to_owned()))
-            .expect("failed to get section: Unit");
+        let unit =
+            conf.section(Some("Unit".to_owned())).expect("failed to get section: Unit");
         let service = conf
             .section(Some("Service".to_owned()))
             .expect("failed to get section: Service");
@@ -144,10 +143,11 @@ impl Service {
         }
         cmd.stdout(Stdio::piped());
 
-        self.child = Some(cmd.spawn().expect(&format!(
-            "failed to spawn child process for {:?}",
-            exec_args[0]
-        )));
+        self.child =
+            Some(cmd.spawn().expect(&format!(
+                "failed to spawn child process for {:?}",
+                exec_args[0]
+            )));
     }
 
     pub fn send_term(&mut self) {}
