@@ -23,7 +23,7 @@ fn main() {
         usage(&args);
         process::exit(1);
     }
-    let mut unit = units::Unit::from_unitfile(&args[1]);
+    let unit = units::Unit::from_unitfile(&args[1]);
     println!("Parsed unit file at {:?}", args[1]);
     println!("{:?}", unit);
     println!(

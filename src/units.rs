@@ -154,7 +154,7 @@ impl Service {
 
     pub fn kill(&mut self) {
         println!("Trying to kill service started by: {:?}", self.exec_start);
-        self.child.as_mut().unwrap().kill();
+        self.child.as_mut().unwrap().kill().expect("Failed to kill chill process");
         println!("Killed child service started by: {:?}", self.exec_start);
     }
 

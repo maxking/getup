@@ -1,7 +1,6 @@
 use crate::units::{CurrState, Service};
 /// monitor.rs includes methods to monitor a running child process.
 use std::io::{self, Write};
-use std::process::ExitStatus;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::{thread, time};
