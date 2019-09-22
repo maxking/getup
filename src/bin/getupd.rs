@@ -63,14 +63,9 @@ fn handler(req: Request<Body>, all_units: &Mutex<AllUnits>) -> BoxFut {
     Box::new(future::ok(response))
 }
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        usage(&args);
-        process::exit(1);
-    }
 
-    let services_path = Path::new(&args[1]);
+fn load_all_services(path: &str) -> Arc<Mutex<AllUnits>> {
+    let services_path = Path::new(path);
 
     if !services_path.exists() {
         println!("Give {} path does not exist...", services_path.display());
@@ -110,6 +105,19 @@ fn main() {
             all_units.lock().expect("Failed to parse unit file").add_unit(unit);
         }
     }
+
+    all_units
+}
+
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        usage(&args);
+        process::exit(1);
+    }
+
+    let all_units = load_all_services(&args[1]);
 
     let stdout = File::create("/tmp/getupd-out.txt").unwrap();
     let stderr = File::create("/tmp/getupd-err.txt").unwrap();
