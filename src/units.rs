@@ -4,15 +4,30 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use serde::Serialize;
+
 /// A collection of all the unit files in a system.
+#[derive(Debug, Serialize)]
 pub struct AllUnits {
     units: Vec<Unit>,
+}
+
+impl AllUnits {
+    pub fn new() -> AllUnits {
+        AllUnits{
+            units: vec!()
+        }
+    }
+    pub fn add_unit(&mut self, u: Unit) {
+        self.units.push(u)
+    }
+
 }
 
 /// A Unit is a systemd unit which could contain a Service. It also includes
 /// Install which can be used to determine how this service is Installed on a
 /// system.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Unit {
     /// Path to the systemd config file on the host from where it was read.
     pub path: String,
@@ -20,8 +35,10 @@ pub struct Unit {
     pub description: String,
     /// Man pages/documentation for the Unit.
     pub documentation: String,
+
     /// Associated Service.
     pub service: Arc<Mutex<Service>>,
+
     /// How to install this Unit.
     pub install: Install,
 
@@ -30,7 +47,9 @@ pub struct Unit {
     // because of which, we need some sort of reference counting structure.
     /// Start this unit file after the service file for after is started.
     after: Option<Arc<Unit>>,
+
     before: Option<Arc<Unit>>,
+
     wants: Option<Arc<Unit>>,
 }
 
@@ -95,7 +114,7 @@ impl Unit {
 
 /// Service file which includes information on how to start, stop, kill or
 /// reload a daemon service.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Service {
     /// There are different types of Services, for now, all I know is that they
     /// are different kinds of them.
@@ -113,10 +132,14 @@ pub struct Service {
     pub no_new_privs: Option<bool>,
     /// What is the current state of this service.
     pub current_state: CurrState,
+
     /// The handle to the child process.
+    #[serde(skip_serializing)]
     child: Option<Child>,
 
     pub restart_policy: RestartMethod,
+
+    #[serde(skip_serializing)]
     pub exit_status: Option<ExitStatus>,
 }
 
@@ -163,26 +186,26 @@ impl Service {
     pub fn restart() {}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Install {
     wanted_by: Option<String>,
     alias: Option<String>,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize)]
 pub enum RestartMethod {
     OnFailure,
     Always,
     Never,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize)]
 pub enum KillModeEnum {
     Process,
     All,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize)]
 pub enum CurrState {
     Stopped,
     Starting,

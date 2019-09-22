@@ -687,3 +687,91 @@ us) who stopped the process:
         }
 
 ```
+
+That brings us to the conclusion of Milestone 1.
+
+
+Milestone 2
+--------------
+
+Our next milestone is a daemon process which can be operated through a REST
+API. It should be able to parse one or two service files, be able to start,
+stop and restart them through the REST API.
+
+We'll call our daemon process `getupd` and will create `src/bin/getupd.rs` and
+get started with the implementation.
+
+Creating a daemon
+---------------------
+
+Daemon processes are interesting. There are really no standards that are known
+on how `daemon(7)` processes should behave but there are
+[guidelines](http://man7.org/linux/man-pages/man7/daemon.7.html) on how they
+should behave depending on the intended system they are targetted to run on.
+
+We are going to depend on a crate,
+[daemonize](https://docs.rs/daemonize/0.4.1/daemonize/) to setup initialization
+sequence for our daemon, getupd.
+
+
+```rust
+    let stdout = File::create("/tmp/getupd-out.txt").unwrap();
+    let stderr = File::create("/tmp/getupd-err.txt").unwrap();
+
+    let daemon = Daemonize::new()
+        .pid_file("/tmp/getupd.pid")
+        .chown_pid_file(true)
+        .working_directory("/tmp")
+        .umask(0o777)
+        .stdout(stdout)
+        .stderr(stderr)
+        .exit_action(|| println!("Exitting..."))
+        .privileged_action(|| println!("Dropping privileges"));
+
+    match daemon.start() {
+        Ok(_) => println!("Started getupd..."),
+        Err(e) => eprintln!("Error, {}", e),
+    }
+```
+
+Now, next step is to make sure that we can start a web server which can bind to
+a local port. There are several [rust web
+frameworks](https://github.com/flosse/rust-web-framework-comparison) that exist
+for build web applications, but we are going to use a simple one called
+[hyper](https://hyper.rs/).
+
+```rust
+    // This is our socket address...
+    let addr = ([127, 0, 0, 1], 3000).into();
+
+    // This is our server object.
+    let server = Server::bind(&addr)
+        .serve(move || {
+            let unit_clone = all_units.clone();
+            service_fn(move |req| handler(req, &unit_clone))
+        })
+        .map_err(|e| eprintln!("server error: {}", e));
+
+    // Run this server for... forever!
+    hyper::rt::run(server);
+```
+
+So, the `.serve()` method of the `Server` object takes a `hyper::Service`
+object, which we create using a function called `handler` which by default
+takes a `hyper::Request` as a single argument.
+
+To make it accept a 2nd argument, list of all the unit files that we parsed, we
+are going to create a closure function, which create a `.clone()` of the `Arc`
+object and passes it to the closure function.
+
+Next, step is the implementation of our handler function, which takes the
+request object and returns either a `hyper::Response` object or and
+`hyper::Error` object. A nice way to do that in Rust is to use a `Box` object.
+
+
+```rust
+# Signature of "handler" function:
+type BoxFut = Box<dyn Future<Item=Response<Body>, Error=hyper::Error> + Send>;
+
+fn handler(req: Request<Body>, all_units: &Mutex<AllUnits>) -> BoxFut {}
+```
