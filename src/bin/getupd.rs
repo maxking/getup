@@ -37,7 +37,7 @@ fn handler(req: Request<Body>, all_units: &Mutex<AllUnits>) -> BoxFut {
                 Body::from(serde_json::to_string(&all_units).unwrap());
         }
         // Match all the paths, so we can do partial string match on them.
-        (&Method::GET, path)  => {
+        (&Method::GET, path) => {
             println!("Got a request for {:?}", path);
 
             // If the paths is of the form /unit/unit.service
@@ -58,11 +58,10 @@ fn handler(req: Request<Body>, all_units: &Mutex<AllUnits>) -> BoxFut {
             }
         }
         // All other requests, not matching above patterns returns 404.
-        (_) =>  *response.status_mut() = StatusCode::NOT_FOUND
+        (_) => *response.status_mut() = StatusCode::NOT_FOUND,
     }
     Box::new(future::ok(response))
 }
-
 
 fn load_all_services(path: &str) -> Arc<Mutex<AllUnits>> {
     let services_path = Path::new(path);
@@ -108,7 +107,6 @@ fn load_all_services(path: &str) -> Arc<Mutex<AllUnits>> {
 
     all_units
 }
-
 
 fn main() {
     let args: Vec<String> = env::args().collect();

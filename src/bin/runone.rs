@@ -7,12 +7,11 @@ use getup::{
 /// the service and keeps on monitoring it.
 use std::env;
 use std::os::unix::process::ExitStatusExt;
+use std::path::Path;
 use std::process;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::path::Path;
-
 
 fn usage(args: &Vec<String>) {
     println!("Expected 1 parameter, got {:?}", args);

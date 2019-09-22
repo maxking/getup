@@ -1,9 +1,9 @@
 use ini::Ini;
 use std::io;
+use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::path::Path;
 
 use serde::Serialize;
 
@@ -90,14 +90,14 @@ impl Unit {
                 .get("Description")
                 .expect("failed to get Description from Unit")
                 .to_string(),
-            documentation: documentation,
+            documentation,
             service: Arc::new(Mutex::new(Service {
                 service_type: atype,
                 exec_start: service
                     .get("ExecStart")
                     .expect("failed to get ExecStart from Service")
                     .to_string(),
-                exec_reload: exec_reload,
+                exec_reload,
                 restart: None,
                 no_new_privs: None,
                 capability_bounding_set: None,
