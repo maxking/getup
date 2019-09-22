@@ -3,6 +3,7 @@ use std::io;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::path::Path;
 
 use serde::Serialize;
 
@@ -14,14 +15,17 @@ pub struct AllUnits {
 
 impl AllUnits {
     pub fn new() -> AllUnits {
-        AllUnits{
-            units: vec!()
-        }
+        AllUnits { units: vec![] }
     }
+
     pub fn add_unit(&mut self, u: Unit) {
         self.units.push(u)
     }
 
+    pub fn get_by_name(&self, name: &str) -> Option<&Unit> {
+        // Given the name of a service, return if it exists, 404 otherwise.
+        self.units.iter().find(|&x| x.path.ends_with(name))
+    }
 }
 
 /// A Unit is a systemd unit which could contain a Service. It also includes
@@ -34,7 +38,7 @@ pub struct Unit {
     /// Description of the Unit.
     pub description: String,
     /// Man pages/documentation for the Unit.
-    pub documentation: String,
+    pub documentation: Option<String>,
 
     /// Associated Service.
     pub service: Arc<Mutex<Service>>,
@@ -54,8 +58,8 @@ pub struct Unit {
 }
 
 impl Unit {
-    pub fn from_unitfile(inifile: &str) -> Unit {
-        let conf = Ini::load_from_file(inifile).unwrap();
+    pub fn from_unitfile(inifile: &Path) -> Unit {
+        let conf = Ini::load_from_file(inifile.to_str().unwrap()).unwrap();
         let unit =
             conf.section(Some("Unit".to_owned())).expect("failed to get section: Unit");
         let service = conf
@@ -65,31 +69,35 @@ impl Unit {
             .section(Some("Install".to_owned()))
             .expect("failed to get section: Install");
 
+        let documentation = None;
+        if let Some(desc) = unit.get("Documentation") {
+            let documentation = Some(desc.to_string());
+        };
+
+        let exec_reload = None;
+        if let Some(exec) = service.get("ExecReload") {
+            let exec_reload = Some(exec.to_string());
+        }
+
+        let atype = None;
+        if let Some(atp) = service.get("Type") {
+            let atype = Some(atp.to_string());
+        }
+
         Unit {
-            path: inifile.to_string(),
+            path: inifile.to_str().unwrap().to_string(),
             description: unit
                 .get("Description")
                 .expect("failed to get Description from Unit")
                 .to_string(),
-            documentation: unit
-                .get("Documentation")
-                .expect("failed to get Documentation from Unit")
-                .to_string(),
+            documentation: documentation,
             service: Arc::new(Mutex::new(Service {
-                service_type: service
-                    .get("Type")
-                    .expect("failed to get Type from Service")
-                    .to_string(),
+                service_type: atype,
                 exec_start: service
                     .get("ExecStart")
                     .expect("failed to get ExecStart from Service")
                     .to_string(),
-                exec_reload: Some(
-                    service
-                        .get("ExecReload")
-                        .expect("failed to get ExecReload from Service")
-                        .to_string(),
-                ),
+                exec_reload: exec_reload,
                 restart: None,
                 no_new_privs: None,
                 capability_bounding_set: None,
@@ -118,7 +126,7 @@ impl Unit {
 pub struct Service {
     /// There are different types of Services, for now, all I know is that they
     /// are different kinds of them.
-    pub service_type: String,
+    pub service_type: Option<String>,
     /// Command to start a daemon, can be a command with arguments, delimited
     /// by empty whitespace.
     pub exec_start: String,

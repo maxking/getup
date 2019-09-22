@@ -386,9 +386,9 @@ needs to read this flag.
             service.kill();
         }
 
-		match child.try_wait() {
-		    ...
-		}
+        match child.try_wait() {
+            ...
+        }
    }
 ```
 
@@ -551,8 +551,8 @@ that it is safe to mutate from two threads, with proper locking of course:
 
 pub struct Service {
     ...
-	service: Arc<Mutex<Service>>,
-	...
+    service: Arc<Mutex<Service>>,
+    ...
 }
 ```
 
@@ -770,8 +770,143 @@ request object and returns either a `hyper::Response` object or and
 
 
 ```rust
-# Signature of "handler" function:
+// Signature of "handler" function:
 type BoxFut = Box<dyn Future<Item=Response<Body>, Error=hyper::Error> + Send>;
 
 fn handler(req: Request<Body>, all_units: &Mutex<AllUnits>) -> BoxFut {}
 ```
+
+Parsing Unit files
+----------------------
+
+We implemented a way to parse single file and create one `units::Unit` object
+when implementing `runone` service. Now, we need to scale this to parse a bunch
+of unit files.
+
+```rust
+// src/bin/getupd.rs
+
+    // Given a directory, services_path, find all the files under it
+    // with name ending with .service.
+    let all_services = services_path
+        .read_dir()
+        .expect("read_dir call failed")
+        .filter(|entry| {
+            entry
+                .as_ref()
+                .expect("Failed to check if the path is a file")
+                .path()
+                .is_file()
+        })
+        .filter(|entry| {
+            entry
+                .as_ref()
+                .expect("Failed to check if the path has service extension")
+                .path()
+                .extension()
+                == Some(OsStr::new("service"))
+        });
+
+    // Create a Vector to store all the Unit Files.
+    let all_units = Arc::new(Mutex::new(AllUnits::new()));
+
+    // Finally, read all the unit files and generate unit objects.
+    for entry in all_services {
+        if let Ok(an_entry) = entry {
+            println!("Loading {:?}...", an_entry);
+
+            let unit = Unit::from_unitfile(&an_entry.path().as_path());
+            all_units.lock().unwrap().add_unit(unit);
+        }
+    }
+```
+
+The `AllUnits` struct that you see in the code is a container which consists
+all the `Units`. We can use that to query if a service exists:
+
+
+```rust
+// src/units.rs
+
+/// A collection of all the unit files in a system.
+#[derive(Debug, Serialize)]
+pub struct AllUnits {
+    units: Vec<Unit>,
+}
+
+impl AllUnits {
+    pub fn new() -> AllUnits {
+        AllUnits { units: vec![] }
+    }
+
+    pub fn add_unit(&mut self, u: Unit) {
+        self.units.push(u)
+    }
+
+    pub fn get_by_name(&self, name: &str) -> Option<&Unit> {
+        // Given the name of a service, return if it exists, 404 otherwise.
+        self.units.iter().find(|&x| x.path.ends_with(name))
+    }
+}
+```
+
+The interesting method, `get_by_name`, is what would be useful to get the Unit
+object if it exists.
+
+
+Implementing JSON API
+--------------------------
+
+The next step is to implement the actual handler which can do basic tasks, like
+return all the list.
+
+```rust
+
+fn handler(req: Request<Body>, all_units: &Mutex<AllUnits>) -> BoxFut {
+    let mut response = Response::new(Body::empty());
+
+    // Pattern match on the request's METHOD and URI to decide what to do.
+    match (req.method(), req.uri().path()) {
+        (&Method::GET, "/") => {
+            *response.body_mut() = Body::from("Try GET to /services");
+        }
+        (&Method::GET, "/units") => {
+            *response.body_mut() =
+                Body::from(serde_json::to_string(&all_units).unwrap());
+        }
+        // Match all the paths, so we can do partial string match on them.
+        (&Method::GET, path)  => {
+            println!("Got a request for {:?}", path);
+
+            // If the paths is of the form /unit/unit.service
+            if path.starts_with("/unit/") {
+                let service = path.split("/").collect::<Vec<&str>>()[2];
+
+                // Lookup if there is a service by that name loaded.
+                if let Some(unit) = all_units.lock().unwrap().get_by_name(service) {
+                    *response.body_mut() =
+                        Body::from(serde_json::to_string(&unit).unwrap());
+                } else {
+                    // Nothing found with that name.
+                    *response.status_mut() = StatusCode::NOT_FOUND;
+                }
+            } else {
+                // All other requests, not starting with /unit/ returns 404.
+                *response.status_mut() = StatusCode::NOT_FOUND;
+            }
+        }
+        // All other requests, not matching above patterns returns 404.
+        (_) =>  *response.status_mut() = StatusCode::NOT_FOUND
+    }
+    Box::new(future::ok(response))
+}
+```
+
+That is all the code which implements the service which serves the REST
+API. There are only 3 endpoints for now:
+
+- `/`: The root, it just returns a static string.
+- `/units`: It returns all the units that were loaded.
+- `/unit/network-manager.service`: It returns a specific Unit object with the
+  filename `network-manager.service` if it exists, 404 otherwise.
+

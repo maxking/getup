@@ -11,6 +11,8 @@ use std::process;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
+use std::path::Path;
+
 
 fn usage(args: &Vec<String>) {
     println!("Expected 1 parameter, got {:?}", args);
@@ -23,7 +25,7 @@ fn main() {
         usage(&args);
         process::exit(1);
     }
-    let unit = units::Unit::from_unitfile(&args[1]);
+    let unit = units::Unit::from_unitfile(Path::new(&args[1]));
     println!("Parsed unit file at {:?}", args[1]);
     println!("{:?}", unit);
     println!(
