@@ -1,13 +1,13 @@
 use ini::Ini;
+use lazy_static::lazy_static;
+use serde::Serialize;
+use serde_json;
 use std::io;
 use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
+use std::string::ToString;
 use std::sync::Arc;
 use std::sync::Mutex;
-use serde::Serialize;
-use lazy_static::lazy_static;
-use serde_json;
-use std::string::ToString;
 
 /// A collection of all the unit files in a system.
 #[derive(Debug, Serialize)]
@@ -33,7 +33,6 @@ impl AllUnits {
         serde_json::to_string(&self).unwrap()
     }
 }
-
 
 /// A Unit is a systemd unit which could contain a Service. It also includes
 /// Install which can be used to determine how this service is Installed on a
@@ -97,14 +96,14 @@ impl Unit {
                 .get("Description")
                 .expect("failed to get Description from Unit")
                 .to_string(),
-            documentation: documentation,
+            documentation,
             service: Arc::new(Mutex::new(Service {
                 service_type: atype,
                 exec_start: service
                     .get("ExecStart")
                     .expect("failed to get ExecStart from Service")
                     .to_string(),
-                exec_reload: exec_reload,
+                exec_reload,
                 restart: None,
                 no_new_privs: None,
                 capability_bounding_set: None,
@@ -231,5 +230,10 @@ pub enum CurrState {
 
 // A global instance of AllUnits to store the loaded values at runtime.
 lazy_static! {
-    pub static ref ALL_UNITS: Arc<Mutex<AllUnits>> = Arc::new(Mutex::new(AllUnits::new()));
+    pub static ref ALL_UNITS: Arc<Mutex<AllUnits>> =
+        Arc::new(Mutex::new(AllUnits::new()));
+    // pub static ref BASE_PATH: &str = "".to_string();
 }
+
+// Reload the server looking for any new services.
+pub fn reload_server() {}

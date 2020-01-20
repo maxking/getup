@@ -1,11 +1,10 @@
+use crate::units::{reload_server, ALL_UNITS};
 /// Module that includes all handler functions for the HTTP API.
-use hyper::header::{CONTENT_TYPE};
-use hyper::{Request, Response, Body};
-use hyper::{StatusCode};
+use hyper::header::CONTENT_TYPE;
+use hyper::StatusCode;
+use hyper::{Body, Request, Response};
 use hyper_router::{Route, RouterBuilder, RouterService};
 use serde_json;
-use crate::units::ALL_UNITS;
-
 
 /// Router service that routes requests to appropriate handler method based on
 /// the regex.
@@ -23,7 +22,6 @@ pub fn router_service() -> Result<RouterService, std::io::Error> {
     Ok(RouterService::new(router))
 }
 
-
 /// Handle: /
 fn root(_: Request<Body>) -> Response<Body> {
     let body = "Try GET to /units";
@@ -33,7 +31,6 @@ fn root(_: Request<Body>) -> Response<Body> {
         .expect("Failed to construct the response")
 }
 
-
 /// Handle: /units
 fn get_all_units(_: Request<Body>) -> Response<Body> {
     Response::builder()
@@ -42,7 +39,6 @@ fn get_all_units(_: Request<Body>) -> Response<Body> {
         .body(Body::from(ALL_UNITS.lock().unwrap().to_string()))
         .expect("Failed to construct the response")
 }
-
 
 /// Handle: /units/example.service
 fn get_a_unit(req: Request<Body>) -> Response<Body> {
@@ -58,5 +54,11 @@ fn get_a_unit(req: Request<Body>) -> Response<Body> {
     }
 
     response
+}
 
+/// Handle: /reload
+fn reload(req: Request<Body>) -> Response<Body> {
+    reload_server();
+
+    Response::new(Body::empty())
 }
