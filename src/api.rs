@@ -16,7 +16,8 @@ use serde_json;
 pub fn router_service() -> Result<RouterService, std::io::Error> {
     let router = RouterBuilder::new()
         .add(Route::get("/").using(root))
-        .add(Route::get("/reload").using(reload))
+        .add(Route::post("/shutdown").using(shutdown))
+        .add(Route::post("/reload").using(reload))
         .add(Route::get("/units").using(get_all_units))
         .add(Route::post(r"/unit/.*?/start").using(start_service))
         .add(Route::post(r"/unit/.*?/stop").using(stop_service))
@@ -32,6 +33,15 @@ fn root(_: Request<Body>) -> Response<Body> {
     Response::builder()
         .header(CONTENT_TYPE, "text/plain")
         .body(Body::from(body))
+        .expect("Failed to construct the response")
+}
+
+fn shutdown(_: Request<Body>) -> Response<Body> {
+    signal_daemon(Message::Shutdown);
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .body(Body::from(""))
         .expect("Failed to construct the response")
 }
 

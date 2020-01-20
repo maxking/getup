@@ -64,13 +64,12 @@ fn main() {
             println!("API Server running on {}", addr);
 
             let rx = &CHANNEL.1;
-            // let (_, rx) = my_channel;
 
             loop {
                 match rx.lock().unwrap().recv().unwrap() {
                     Message::Shutdown => {
                         println!("Got: Shutdown signal");
-                        break
+                        break;
                     }
                     Message::Start(unit_name) => {
                         println!("Got start {:?}", unit_name);
