@@ -75,14 +75,14 @@ impl Unit {
             .section(Some("Install".to_owned()))
             .expect("failed to get section: Install");
 
-        let documentation = None;
+        let _documentation = None;
         if let Some(desc) = unit.get("Documentation") {
-            let documentation = Some(desc.to_string());
+            let _documentation = Some(desc.to_string());
         };
 
-        let exec_reload = None;
+        let _exec_reload = None;
         if let Some(exec) = service.get("ExecReload") {
-            let exec_reload = Some(exec.to_string());
+            let _exec_reload = Some(exec.to_string());
         }
 
         let atype = None;
@@ -96,14 +96,14 @@ impl Unit {
                 .get("Description")
                 .expect("failed to get Description from Unit")
                 .to_string(),
-            documentation,
+            documentation: _documentation,
             service: Arc::new(Mutex::new(Service {
                 service_type: atype,
                 exec_start: service
                     .get("ExecStart")
                     .expect("failed to get ExecStart from Service")
                     .to_string(),
-                exec_reload,
+                exec_reload: _exec_reload,
                 restart: None,
                 no_new_privs: None,
                 capability_bounding_set: None,

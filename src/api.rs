@@ -15,6 +15,7 @@ use serde_json;
 pub fn router_service() -> Result<RouterService, std::io::Error> {
     let router = RouterBuilder::new()
         .add(Route::get("/").using(root))
+        .add(Route::get("/reload").using(reload))
         .add(Route::get("/units").using(get_all_units))
         .add(Route::get("/unit/.*?").using(get_a_unit))
         .build();
@@ -57,7 +58,7 @@ fn get_a_unit(req: Request<Body>) -> Response<Body> {
 }
 
 /// Handle: /reload
-fn reload(req: Request<Body>) -> Response<Body> {
+fn reload(_: Request<Body>) -> Response<Body> {
     reload_server();
 
     Response::new(Body::empty())
