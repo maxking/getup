@@ -1,0 +1,8 @@
+[Unit]
+Description=Example Service
+
+[Service]
+ExecStart=/usr/bin/python3 -m http.server
+
+[Install]
+WantedBy=multi-user.target

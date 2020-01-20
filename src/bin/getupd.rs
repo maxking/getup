@@ -2,68 +2,23 @@ use std::fs::File;
 
 use daemonize::Daemonize;
 use hyper::rt::Future;
-use hyper::service::service_fn;
-use hyper::{Body, Request, Response, Server};
+use hyper::Server;
 
-use futures::future;
-use hyper::{Method, StatusCode};
-
-use getup::units::{AllUnits, Unit};
-use serde_json;
+use getup::units::{Unit, ALL_UNITS};
+use getup::api::{router_service};
 use std::env;
 use std::ffi::OsStr;
 use std::path::Path;
 use std::process;
-use std::sync::Arc;
-use std::sync::Mutex;
+
 
 fn usage(args: &Vec<String>) {
     println!("Expected 1 parameter, got {:?}", args);
     println!("\nUsage: getupd /path/all/services/dir");
 }
 
-type BoxFut = Box<dyn Future<Item = Response<Body>, Error = hyper::Error> + Send>;
 
-fn handler(req: Request<Body>, all_units: &Mutex<AllUnits>) -> BoxFut {
-    let mut response = Response::new(Body::empty());
-
-    // Pattern match on the request's METHOD and URI to decide what to do.
-    match (req.method(), req.uri().path()) {
-        (&Method::GET, "/") => {
-            *response.body_mut() = Body::from("Try GET to /services");
-        }
-        (&Method::GET, "/units") => {
-            *response.body_mut() =
-                Body::from(serde_json::to_string(&all_units).unwrap());
-        }
-        // Match all the paths, so we can do partial string match on them.
-        (&Method::GET, path) => {
-            println!("Got a request for {:?}", path);
-
-            // If the paths is of the form /unit/unit.service
-            if path.starts_with("/unit/") {
-                let service = path.split("/").collect::<Vec<&str>>()[2];
-
-                // Lookup if there is a service by that name loaded.
-                if let Some(unit) = all_units.lock().unwrap().get_by_name(service) {
-                    *response.body_mut() =
-                        Body::from(serde_json::to_string(&unit).unwrap());
-                } else {
-                    // Nothing found with that name.
-                    *response.status_mut() = StatusCode::NOT_FOUND;
-                }
-            } else {
-                // All other requests, not starting with /unit/ returns 404.
-                *response.status_mut() = StatusCode::NOT_FOUND;
-            }
-        }
-        // All other requests, not matching above patterns returns 404.
-        (_) => *response.status_mut() = StatusCode::NOT_FOUND,
-    }
-    Box::new(future::ok(response))
-}
-
-fn load_all_services(path: &str) -> Arc<Mutex<AllUnits>> {
+fn load_all_services(path: &str) {
     let services_path = Path::new(path);
 
     if !services_path.exists() {
@@ -94,19 +49,16 @@ fn load_all_services(path: &str) -> Arc<Mutex<AllUnits>> {
                 == Some(OsStr::new("service"))
         });
 
-    let all_units = Arc::new(Mutex::new(AllUnits::new()));
-
     for entry in all_services {
         if let Ok(an_entry) = entry {
             println!("Loading {:?}...", an_entry);
 
             let unit = Unit::from_unitfile(&an_entry.path().as_path());
-            all_units.lock().expect("Failed to parse unit file").add_unit(unit);
+            ALL_UNITS.lock().expect("Failed to parse unit file").add_unit(unit);
         }
     }
-
-    all_units
 }
+
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -115,7 +67,7 @@ fn main() {
         process::exit(1);
     }
 
-    let all_units = load_all_services(&args[1]);
+    load_all_services(&args[1]);
 
     let stdout = File::create("/tmp/getupd-out.txt").unwrap();
     let stderr = File::create("/tmp/getupd-err.txt").unwrap();
@@ -135,10 +87,7 @@ fn main() {
 
     // This is our server object.
     let server = Server::bind(&addr)
-        .serve(move || {
-            let unit_clone = all_units.clone();
-            service_fn(move |req| handler(req, &unit_clone))
-        })
+        .serve(router_service)
         .map_err(|e| eprintln!("server error: {}", e));
 
     // Run this server for... forever!

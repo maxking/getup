@@ -6,6 +6,7 @@ edition = "2018"
 license = "Apache-2.0"
 homepage = "https://github.com/maxking/getup"
 repository = "https://github.com/maxking/getup"
+default-run = "getupd"
 description = """
 Getup, an init system meant for Linux.
 """
@@ -17,7 +18,9 @@ rust-ini = "0.13.0"
 ctrlc = "*"
 daemonize = "0.4.1"
 hyper = "0.12"
+hyper-router = "^0.5"
 futures = "0.1"
+lazy_static = "1.4.0"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive", "rc"] }
 

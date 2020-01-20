@@ -4,8 +4,10 @@ use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::Arc;
 use std::sync::Mutex;
-
 use serde::Serialize;
+use lazy_static::lazy_static;
+use serde_json;
+use std::string::ToString;
 
 /// A collection of all the unit files in a system.
 #[derive(Debug, Serialize)]
@@ -23,10 +25,15 @@ impl AllUnits {
     }
 
     pub fn get_by_name(&self, name: &str) -> Option<&Unit> {
-        // Given the name of a service, return if it exists, 404 otherwise.
+        // Given the name of a service, return if it exists
         self.units.iter().find(|&x| x.path.ends_with(name))
     }
+
+    pub fn to_string(&self) -> String {
+        serde_json::to_string(&self).unwrap()
+    }
 }
+
 
 /// A Unit is a systemd unit which could contain a Service. It also includes
 /// Install which can be used to determine how this service is Installed on a
@@ -81,7 +88,7 @@ impl Unit {
 
         let atype = None;
         if let Some(atp) = service.get("Type") {
-            let atype = Some(atp.to_string());
+            let _atype = Some(atp.to_string());
         }
 
         Unit {
@@ -90,14 +97,14 @@ impl Unit {
                 .get("Description")
                 .expect("failed to get Description from Unit")
                 .to_string(),
-            documentation,
+            documentation: documentation,
             service: Arc::new(Mutex::new(Service {
                 service_type: atype,
                 exec_start: service
                     .get("ExecStart")
                     .expect("failed to get ExecStart from Service")
                     .to_string(),
-                exec_reload,
+                exec_reload: exec_reload,
                 restart: None,
                 no_new_privs: None,
                 capability_bounding_set: None,
@@ -220,4 +227,9 @@ pub enum CurrState {
     Running,
     Failed,
     Restarting,
+}
+
+// A global instance of AllUnits to store the loaded values at runtime.
+lazy_static! {
+    pub static ref ALL_UNITS: Arc<Mutex<AllUnits>> = Arc::new(Mutex::new(AllUnits::new()));
 }
