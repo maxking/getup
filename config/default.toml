@@ -1,0 +1,6 @@
+stdout = "/tmp/getupd-out.log"
+stderr = "/tmp/getup-err.log"
+pidfile = "/run/getup.pid"
+workdir = "/tmp"
+services_path = "testdata/"
+port = 3000 
