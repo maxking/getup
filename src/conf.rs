@@ -2,16 +2,14 @@ use config::{Config, ConfigError, Environment, File};
 use lazy_static::lazy_static;
 use serde::Deserialize;
 
-
 #[derive(Debug, Deserialize)]
 pub struct Settings {
     pub stdout: String,
     pub stderr: String,
     pub pidfile: String,
     pub workdir: String,
-    pub services_path :String,
+    pub services_path: String,
     pub port: u32,
-
 }
 
 impl Settings {
@@ -27,7 +25,7 @@ impl Settings {
 }
 
 lazy_static! {
-    pub static ref SETTINGS: Settings  = Settings::new().expect("Failed to load config");
+    pub static ref SETTINGS: Settings = Settings::new().expect("Failed to load config");
 }
 
 pub fn initialize_config() {}

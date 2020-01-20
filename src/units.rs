@@ -1,5 +1,9 @@
 use ini::Ini;
 use lazy_static::lazy_static;
+use nix::errno::Errno::{EINVAL, EPERM, ESRCH};
+use nix::sys::signal::{kill, Signal};
+use nix::unistd::Pid;
+use nix::Error::Sys;
 use serde::Serialize;
 use serde_json;
 use std::io;
@@ -9,12 +13,6 @@ use std::string::ToString;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::{thread, time};
-use nix::sys::signal::{kill, Signal};
-use nix::unistd::Pid;
-use nix::Error::Sys;
-use nix::errno::Errno::{EINVAL, EPERM, ESRCH};
-
-
 
 #[derive(Debug, Serialize)]
 pub struct Install {
@@ -44,7 +42,6 @@ pub enum CurrState {
     Failed,
     Restarting,
 }
-
 
 /// A collection of all the unit files in a system.
 #[derive(Debug, Serialize)]
@@ -244,7 +241,7 @@ impl Service {
                     if time::Instant::now() > expire {
                         break;
                     }
-                    thread::sleep(wait_duration/10);
+                    thread::sleep(wait_duration / 10);
                 }
                 if let Ok(None) = self.try_wait() {
                     self.kill()
@@ -260,9 +257,7 @@ impl Service {
             Err(Sys(ESRCH)) => {
                 println!("Process identified by {} does not exist", pid);
             }
-            Err(e) => {
-                println!("Unexpected error {}", e)
-            }
+            Err(e) => println!("Unexpected error {}", e),
         }
         self.current_state = CurrState::Stopped;
     }

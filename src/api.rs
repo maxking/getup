@@ -1,4 +1,5 @@
 use crate::units::{reload_server, ALL_UNITS};
+use crate::signals::{Message, signal_daemon};
 /// Module that includes all handler functions for the HTTP API.
 use hyper::header::CONTENT_TYPE;
 use hyper::StatusCode;
@@ -17,9 +18,9 @@ pub fn router_service() -> Result<RouterService, std::io::Error> {
         .add(Route::get("/").using(root))
         .add(Route::get("/reload").using(reload))
         .add(Route::get("/units").using(get_all_units))
-        .add(Route::get("/unit/.*?").using(get_a_unit))
-        .add(Route::post("/unit/.*?/start").using(start_service))
-        .add(Route::post("/unit/.*?/stop").using(stop_service))
+        .add(Route::post(r"/unit/.*?/start").using(start_service))
+        .add(Route::post(r"/unit/.*?/stop").using(stop_service))
+        .add(Route::get(r"/unit/.*?").using(get_a_unit))
         .build();
 
     Ok(RouterService::new(router))
@@ -38,7 +39,6 @@ fn root(_: Request<Body>) -> Response<Body> {
 fn get_all_units(_: Request<Body>) -> Response<Body> {
     Response::builder()
         .header(CONTENT_TYPE, "application/json")
-        // TODO: Fix the serialization of the units.
         .body(Body::from(ALL_UNITS.lock().unwrap().to_string()))
         .expect("Failed to construct the response")
 }
@@ -59,22 +59,21 @@ fn get_a_unit(req: Request<Body>) -> Response<Body> {
     response
 }
 
-
-// TODO:
+// TODO: Implement this.
 /// Handle: /reload
 fn reload(_: Request<Body>) -> Response<Body> {
     reload_server();
     Response::new(Body::empty())
 }
 
-
+/// Handle: /unit/example.service/start
 fn start_service(req: Request<Body>) -> Response<Body> {
     let mut response = Response::new(Body::empty());
     let path = req.uri().path();
     let service = path.split("/").collect::<Vec<&str>>()[2];
 
-    if let Some(unit) = ALL_UNITS.lock().unwrap().get_by_name(service) {
-        unit.service.lock().unwrap().start();
+    if let Some(_) = ALL_UNITS.lock().unwrap().get_by_name(service) {
+        signal_daemon(Message::Start(service.to_string()));
         *response.body_mut() = Body::from("OK");
     } else {
         // Nothing found with that name.
@@ -85,14 +84,14 @@ fn start_service(req: Request<Body>) -> Response<Body> {
     response
 }
 
-
+/// Handle: /unit/example.service/stop
 fn stop_service(req: Request<Body>) -> Response<Body> {
     let mut response = Response::new(Body::empty());
     let path = req.uri().path();
     let service = path.split("/").collect::<Vec<&str>>()[2];
 
     if let Some(unit) = ALL_UNITS.lock().unwrap().get_by_name(service) {
-        unit.service.lock().unwrap().stop();
+        signal_daemon(Message::Stop(service.to_string()));
         *response.body_mut() = Body::from("OK");
     } else {
         // Nothing found with that name.

@@ -24,9 +24,8 @@ futures = "0.1"
 lazy_static = "1.4.0"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive", "rc"] }
-serde_derive = "^1.0.8"
 nix = "*"
-
+crossbeam-channel = "0.4.0"
 
 [lib]
 name = "getup"
