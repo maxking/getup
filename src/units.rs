@@ -8,6 +8,43 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 use std::string::ToString;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::{thread, time};
+use nix::sys::signal::{kill, Signal};
+use nix::unistd::Pid;
+use nix::Error::Sys;
+use nix::errno::Errno::{EINVAL, EPERM, ESRCH};
+
+
+
+#[derive(Debug, Serialize)]
+pub struct Install {
+    wanted_by: Option<String>,
+    alias: Option<String>,
+}
+
+#[derive(Debug, Copy, Clone, Serialize)]
+pub enum RestartMethod {
+    OnFailure,
+    Always,
+    Never,
+}
+
+#[derive(Debug, Copy, Clone, Serialize)]
+pub enum KillModeEnum {
+    Process,
+    All,
+}
+
+#[derive(Copy, Clone, Debug, Serialize)]
+pub enum CurrState {
+    Stopping,
+    Stopped,
+    Starting,
+    Running,
+    Failed,
+    Restarting,
+}
+
 
 /// A collection of all the unit files in a system.
 #[derive(Debug, Serialize)]
@@ -173,6 +210,7 @@ impl Service {
     pub fn start(&mut self) {
         let exec_args: Vec<&str> = self.exec_start.split_whitespace().collect();
         let mut cmd = Command::new(exec_args[0]);
+        self.current_state = CurrState::Starting;
 
         // We need to set the args if there are any.
         if exec_args.len() > 1 {
@@ -185,9 +223,49 @@ impl Service {
                 "failed to spawn child process for {:?}",
                 exec_args[0]
             )));
+        self.current_state = CurrState::Running;
     }
 
-    pub fn send_term(&mut self) {}
+    /// Send SIGTERM to the process and if it does not exit after a timeout,
+    /// send a SIGKILL.
+    pub fn stop(&mut self) {
+        // Reference for this implementation:
+        // https://gist.github.com/spwitt/2f8f116fffeb0f3135df963d4bdf0637
+
+        self.current_state = CurrState::Stopping;
+        // Graceful exit timeout is 10 seconds by default./
+        // TODO: Make this configurable per-service, like systemd.
+        let wait_duration = time::Duration::new(10, 0);
+        let pid = Pid::from_raw(self.child.as_ref().unwrap().id() as i32);
+        match kill(pid, Signal::SIGINT) {
+            Ok(()) => {
+                let expire = time::Instant::now() + wait_duration;
+                while let Ok(None) = self.try_wait() {
+                    if time::Instant::now() > expire {
+                        break;
+                    }
+                    thread::sleep(wait_duration/10);
+                }
+                if let Ok(None) = self.try_wait() {
+                    self.kill()
+                }
+            }
+            Err(Sys(EINVAL)) => {
+                println!("Invalid signal. Killing process");
+                self.kill()
+            }
+            Err(Sys(EPERM)) => {
+                println!("Insufficient permissions to signal process {}", pid);
+            }
+            Err(Sys(ESRCH)) => {
+                println!("Process identified by {} does not exist", pid);
+            }
+            Err(e) => {
+                println!("Unexpected error {}", e)
+            }
+        }
+        self.current_state = CurrState::Stopped;
+    }
 
     pub fn kill(&mut self) {
         println!("Trying to kill service started by: {:?}", self.exec_start);
@@ -198,34 +276,6 @@ impl Service {
     pub fn reload() {}
 
     pub fn restart() {}
-}
-
-#[derive(Debug, Serialize)]
-pub struct Install {
-    wanted_by: Option<String>,
-    alias: Option<String>,
-}
-
-#[derive(Debug, Copy, Clone, Serialize)]
-pub enum RestartMethod {
-    OnFailure,
-    Always,
-    Never,
-}
-
-#[derive(Debug, Copy, Clone, Serialize)]
-pub enum KillModeEnum {
-    Process,
-    All,
-}
-
-#[derive(Copy, Clone, Debug, Serialize)]
-pub enum CurrState {
-    Stopped,
-    Starting,
-    Running,
-    Failed,
-    Restarting,
 }
 
 // A global instance of AllUnits to store the loaded values at runtime.
