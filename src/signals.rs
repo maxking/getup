@@ -5,7 +5,6 @@ use lazy_static::lazy_static;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Mutex;
 
-
 lazy_static! {
     pub static ref CHANNEL: (Mutex<Sender<Message>>, Mutex<Receiver<Message>>) = {
         let (r, w) = channel();

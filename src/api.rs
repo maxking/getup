@@ -1,5 +1,5 @@
+use crate::signals::{signal_daemon, Message};
 use crate::units::{reload_server, ALL_UNITS};
-use crate::signals::{Message, signal_daemon};
 /// Module that includes all handler functions for the HTTP API.
 use hyper::header::CONTENT_TYPE;
 use hyper::StatusCode;

@@ -73,7 +73,9 @@ fn main() {
                     }
                     Message::Start(unit_name) => {
                         println!("Got start {:?}", unit_name);
-                        if let Some(unit) = ALL_UNITS.lock().unwrap().get_by_name(&unit_name) {
+                        if let Some(unit) =
+                            ALL_UNITS.lock().unwrap().get_by_name(&unit_name)
+                        {
                             unit.service.lock().unwrap().start();
                         } else {
                             println!("Did not find a service named {}", unit_name);
@@ -81,15 +83,16 @@ fn main() {
                     }
                     Message::Stop(unit_name) => {
                         println!("Got stop {:?}", unit_name);
-                        if let Some(unit) = ALL_UNITS.lock().unwrap().get_by_name(&unit_name) {
+                        if let Some(unit) =
+                            ALL_UNITS.lock().unwrap().get_by_name(&unit_name)
+                        {
                             unit.service.lock().unwrap().stop();
                         } else {
                             println!("Did not find a service named {}", unit_name);
                         }
                     }
-                    _ => println!("Unable to handle message")
+                    _ => println!("Unable to handle message"),
                 }
-
             }
 
             api_server.join().expect("Waiting for child process to exit clean");
