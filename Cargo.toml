@@ -20,7 +20,6 @@ ctrlc = "*"
 daemonize = "0.4.1"
 hyper = "0.12"
 hyper-router = "^0.5"
-futures = "0.1"
 lazy_static = "1.4.0"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive", "rc"] }
