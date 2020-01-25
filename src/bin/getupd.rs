@@ -1,6 +1,7 @@
 use std::fs::File;
 
 use daemonize::Daemonize;
+use futures::sync::oneshot;
 use hyper::rt::Future;
 use hyper::Server;
 
@@ -48,10 +49,15 @@ fn main() {
     // This is our socket address...
     let addr = format!("0.0.0.0:{}", SETTINGS.port);
 
+    // Create a channel to signal Hyper to shutdown when we receive the signal
+    // from the Web API.
+    let (tx, rx) = oneshot::channel::<()>();
+
     // This is our server object.
     let server = Server::bind(&addr.parse().expect("Unable to parse host port"))
         .serve(router_service)
-        .map_err(|e| eprintln!("server error: {}", e));
+        .with_graceful_shutdown(rx)
+        .map_err(|err| eprintln!("server error: {}", err));
 
     match daemon.start() {
         Ok(_) => {
@@ -95,6 +101,8 @@ fn main() {
                 }
             }
 
+            let _ = tx.send(());
+            println!("Waiting for API Server to exit!");
             api_server.join().expect("Waiting for child process to exit clean");
         }
         Err(e) => eprintln!("Error, {}", e),
