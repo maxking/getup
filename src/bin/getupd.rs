@@ -14,6 +14,10 @@ use std::env;
 use std::process;
 use std::thread;
 
+#[macro_use]
+extern crate log;
+extern crate pretty_env_logger;
+
 fn usage(args: &Vec<String>) {
     println!("Expected 1 parameter, got {:?}", args);
     println!("\nUsage: getupd /path/all/services/dir");
@@ -21,6 +25,10 @@ fn usage(args: &Vec<String>) {
 
 fn main() {
     initialize_config();
+
+    pretty_env_logger::formatted_builder()
+        .parse_filters("getupd=trace")
+        .init();
 
     let args: Vec<String> = env::args().collect();
     let mut services_path: &str = &SETTINGS.services_path;
@@ -43,8 +51,8 @@ fn main() {
         .umask(0o777)
         .stdout(stdout)
         .stderr(stderr)
-        .exit_action(|| println!("Switching to background..."))
-        .privileged_action(|| println!("Dropping privileges"));
+        .exit_action(|| info!("Switching to background..."))
+        .privileged_action(|| info!("Dropping privileges"));
 
     // This is our socket address...
     let addr = format!("0.0.0.0:{}", SETTINGS.port);
@@ -63,46 +71,46 @@ fn main() {
         Ok(_) => {
             // Run this server for... forever!
 
-            println!("Starting up API  in a different thread");
+            info!("Starting up API  in a different thread");
             let api_server = thread::spawn(move || {
                 hyper::rt::run(server);
             });
-            println!("API Server running on {}", addr);
+            info!("API Server running on {}", addr);
 
             let rx = &CHANNEL.1;
 
             loop {
                 match rx.lock().unwrap().recv().unwrap() {
                     Message::Shutdown => {
-                        println!("Got: Shutdown signal");
+                        info!("Got: Shutdown signal");
                         break;
                     }
                     Message::Start(unit_name) => {
-                        println!("Got start {:?}", unit_name);
+                        info!("Got start {:?}", unit_name);
                         if let Some(unit) =
                             ALL_UNITS.lock().unwrap().get_by_name(&unit_name)
                         {
                             unit.service.lock().unwrap().start();
                         } else {
-                            println!("Did not find a service named {}", unit_name);
+                            error!("Did not find a service named {}", unit_name);
                         }
                     }
                     Message::Stop(unit_name) => {
-                        println!("Got stop {:?}", unit_name);
+                        info!("Got stop {:?}", unit_name);
                         if let Some(unit) =
                             ALL_UNITS.lock().unwrap().get_by_name(&unit_name)
                         {
                             unit.service.lock().unwrap().stop();
                         } else {
-                            println!("Did not find a service named {}", unit_name);
+                            error!("Did not find a service named {}", unit_name);
                         }
                     }
-                    _ => println!("Unable to handle message"),
+                    _ => error!("Unable to handle message"),
                 }
             }
 
             let _ = tx.send(());
-            println!("Waiting for API Server to exit!");
+            info!("Waiting for API Server to exit!");
             api_server.join().expect("Waiting for child process to exit clean");
         }
         Err(e) => eprintln!("Error, {}", e),

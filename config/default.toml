@@ -1,5 +1,5 @@
-stdout = "/tmp/getupd-out.log"
-stderr = "/tmp/getup-err.log"
+stdout = "/tmp/getupd.log"
+stderr = "/tmp/getupd.log"
 pidfile = "/tmp/getup.pid"
 workdir = "/tmp"
 services_path = "testdata/"
