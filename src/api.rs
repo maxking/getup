@@ -36,6 +36,8 @@ fn root(_: Request<Body>) -> Response<Body> {
         .expect("Failed to construct the response")
 }
 
+
+/// Handle: /shutdown
 fn shutdown(_: Request<Body>) -> Response<Body> {
     signal_daemon(Message::Shutdown);
 
@@ -100,7 +102,7 @@ fn stop_service(req: Request<Body>) -> Response<Body> {
     let path = req.uri().path();
     let service = path.split("/").collect::<Vec<&str>>()[2];
 
-    if let Some(unit) = ALL_UNITS.lock().unwrap().get_by_name(service) {
+    if let Some(_) = ALL_UNITS.lock().unwrap().get_by_name(service) {
         signal_daemon(Message::Stop(service.to_string()));
         *response.body_mut() = Body::from("OK");
     } else {

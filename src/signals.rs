@@ -1,6 +1,5 @@
 /// This module defines the signals that API server and the main daemon use to
 /// communicate.
-use crate::units::Unit;
 use lazy_static::lazy_static;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Mutex;
