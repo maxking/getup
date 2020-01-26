@@ -3,8 +3,7 @@ use crate::units::{reload_server, ALL_UNITS};
 /// Module that includes all handler functions for the HTTP API.
 use hyper::header::CONTENT_TYPE;
 use hyper::StatusCode;
-use hyper::{Body, Request, Response};
-use hyper_router::{Route, RouterBuilder, RouterService};
+use hyper::{Method, Body, Request, Response};
 use serde_json;
 
 /// Router service that routes requests to appropriate handler method based on
@@ -13,19 +12,32 @@ use serde_json;
 /// /             -> Returns just a string.
 /// /units        -> Returns a list of units installed.
 /// /units/<unit> -> Return the details of the specific unit.
-pub fn router_service() -> Result<RouterService, std::io::Error> {
-    let router = RouterBuilder::new()
-        .add(Route::get("/").using(root))
-        .add(Route::post("/shutdown").using(shutdown))
-        .add(Route::post("/reload").using(reload))
-        .add(Route::get("/units").using(get_all_units))
-        .add(Route::post(r"/unit/.*?/start").using(start_service))
-        .add(Route::post(r"/unit/.*?/stop").using(stop_service))
-        .add(Route::get(r"/unit/.*?").using(get_a_unit))
-        .build();
+// pub fn router_service() -> Result<RouterService, std::io::Error> {
+//     let router = RouterBuilder::new()
+//         .add(Route::get("/").using(root))
+//         .add(Route::post("/shutdown").using(shutdown))
+//         .add(Route::post("/reload").using(reload))
+//         .add(Route::get("/units").using(get_all_units))
+//         .add(Route::post(r"/unit/.*?/start").using(start_service))
+//         .add(Route::post(r"/unit/.*?/stop").using(stop_service))
+//         .add(Route::get(r"/unit/.*?").using(get_a_unit))
+//         .build();
 
-    Ok(RouterService::new(router))
+//     Ok(RouterService::new(router))
+// }
+
+
+pub async fn router(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+    match (req.method(), req.uri().path()) {
+        (&Method::GET, "/") => Ok(root(req)),
+        (&Method::POST, "/shutdown") => Ok(shutdown(req)),
+        (&Method::POST, "/reload") => Ok(reload(req)),
+        (&Method::GET, "/units") => Ok(get_all_units(req)),
+        _  => Ok(root(req))
+    }
+
 }
+
 
 /// Handle: /
 fn root(_: Request<Body>) -> Response<Body> {

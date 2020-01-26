@@ -1,11 +1,11 @@
 use std::fs::File;
 
 use daemonize::Daemonize;
-use futures::sync::oneshot;
-use hyper::rt::Future;
+use futures::channel::oneshot;
 use hyper::Server;
+use hyper::service::{make_service_fn, service_fn};
 
-use getup::api::router_service;
+use getup::api::{router};
 use getup::conf::{initialize_config, SETTINGS};
 use getup::core::initialize;
 use getup::signals::{Message, CHANNEL};
@@ -20,8 +20,31 @@ extern crate pretty_env_logger;
 
 fn usage(args: &Vec<String>) {
     println!("Expected 1 parameter, got {:?}", args);
-    println!("\nUsage: getupd /path/all/services/dir");
+    println!("\nUsage: getupd /path/all/services/
+dir");
 }
+
+
+#[tokio::main]
+async fn run(rx: oneshot::Receiver<()>) {
+
+    // This is our socket address...
+    let addr = format!("0.0.0.0:{}", SETTINGS.port);
+
+    let service = make_service_fn(|_| async { Ok::<_, hyper::Error>(service_fn(router)) });
+    info!("API Server running on {}", addr);
+    // This is our server object.
+    let server = Server::bind(&addr.parse().expect("Unable to parse host port"))
+        .serve(service)
+        .with_graceful_shutdown(async move {
+            rx.await.ok();
+        });
+
+    if let Err(e) = server.await {
+        eprintln!("server error: {}", e);
+    }
+}
+
 
 fn main() {
     initialize_config();
@@ -54,28 +77,18 @@ fn main() {
         .exit_action(|| info!("Switching to background..."))
         .privileged_action(|| info!("Dropping privileges"));
 
-    // This is our socket address...
-    let addr = format!("0.0.0.0:{}", SETTINGS.port);
-
     // Create a channel to signal Hyper to shutdown when we receive the signal
     // from the Web API.
     let (tx, rx) = oneshot::channel::<()>();
-
-    // This is our server object.
-    let server = Server::bind(&addr.parse().expect("Unable to parse host port"))
-        .serve(router_service)
-        .with_graceful_shutdown(rx)
-        .map_err(|err| eprintln!("server error: {}", err));
-
+ 
     match daemon.start() {
         Ok(_) => {
             // Run this server for... forever!
 
             info!("Starting up API  in a different thread");
             let api_server = thread::spawn(move || {
-                hyper::rt::run(server);
+                run(rx)
             });
-            info!("API Server running on {}", addr);
 
             let rx = &CHANNEL.1;
 
