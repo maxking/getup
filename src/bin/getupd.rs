@@ -2,10 +2,10 @@ use std::fs::File;
 
 use daemonize::Daemonize;
 use futures::channel::oneshot;
-use hyper::Server;
 use hyper::service::{make_service_fn, service_fn};
+use hyper::Server;
 
-use getup::api::{router};
+use getup::api::router;
 use getup::conf::{initialize_config, SETTINGS};
 use getup::core::initialize;
 use getup::signals::{Message, CHANNEL};
@@ -20,18 +20,19 @@ extern crate pretty_env_logger;
 
 fn usage(args: &Vec<String>) {
     println!("Expected 1 parameter, got {:?}", args);
-    println!("\nUsage: getupd /path/all/services/
-dir");
+    println!(
+        "\nUsage: getupd /path/all/services/
+dir"
+    );
 }
-
 
 #[tokio::main]
 async fn run(rx: oneshot::Receiver<()>) {
-
     // This is our socket address...
     let addr = format!("0.0.0.0:{}", SETTINGS.port);
 
-    let service = make_service_fn(|_| async { Ok::<_, hyper::Error>(service_fn(router)) });
+    let service =
+        make_service_fn(|_| async { Ok::<_, hyper::Error>(service_fn(router)) });
     info!("API Server running on {}", addr);
     // This is our server object.
     let server = Server::bind(&addr.parse().expect("Unable to parse host port"))
@@ -45,13 +46,10 @@ async fn run(rx: oneshot::Receiver<()>) {
     }
 }
 
-
 fn main() {
     initialize_config();
 
-    pretty_env_logger::formatted_builder()
-        .parse_filters("getupd=trace")
-        .init();
+    pretty_env_logger::formatted_builder().parse_filters("getupd=trace").init();
 
     let args: Vec<String> = env::args().collect();
     let mut services_path: &str = &SETTINGS.services_path;
@@ -80,15 +78,13 @@ fn main() {
     // Create a channel to signal Hyper to shutdown when we receive the signal
     // from the Web API.
     let (tx, rx) = oneshot::channel::<()>();
- 
+
     match daemon.start() {
         Ok(_) => {
             // Run this server for... forever!
 
             info!("Starting up API  in a different thread");
-            let api_server = thread::spawn(move || {
-                run(rx)
-            });
+            let api_server = thread::spawn(move || run(rx));
 
             let rx = &CHANNEL.1;
 

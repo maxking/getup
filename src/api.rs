@@ -3,7 +3,7 @@ use crate::units::{reload_server, ALL_UNITS};
 /// Module that includes all handler functions for the HTTP API.
 use hyper::header::CONTENT_TYPE;
 use hyper::StatusCode;
-use hyper::{Method, Body, Request, Response};
+use hyper::{Body, Method, Request, Response};
 use serde_json;
 
 /// Router service that routes requests to appropriate handler method based on
@@ -26,18 +26,15 @@ use serde_json;
 //     Ok(RouterService::new(router))
 // }
 
-
 pub async fn router(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") => Ok(root(req)),
         (&Method::POST, "/shutdown") => Ok(shutdown(req)),
         (&Method::POST, "/reload") => Ok(reload(req)),
         (&Method::GET, "/units") => Ok(get_all_units(req)),
-        _  => Ok(root(req))
+        _ => Ok(root(req)),
     }
-
 }
-
 
 /// Handle: /
 fn root(_: Request<Body>) -> Response<Body> {
