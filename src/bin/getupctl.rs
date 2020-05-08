@@ -1,16 +1,12 @@
-use hyper::{body::HttpBody as _, Client, Uri};
+use clap::{App, Arg, SubCommand};
+use hyper::http::Response;
+use hyper::{body::Bytes, body::HttpBody as _, Body, Client, Request, Uri};
 use serde_json::Value;
 use tokio::io::{self, AsyncWriteExt as _};
-
-use clap::{App, Arg, SubCommand};
 
 static BASE_URL: &'static str = "localhost:3000";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
-
-pub fn parse_json(jsonstr: &str) -> Value {
-    return serde_json::from_str(&jsonstr).unwrap();
-}
 
 /// create a full url with scheme and host appending the Path and returning the
 /// Uri attribute.
@@ -23,13 +19,40 @@ fn get_full_url(path: &str) -> Uri {
         .unwrap();
 }
 
-/// Call the URL and return the JSON response.
-async fn get_json_response(url: &str) -> Result<Value> {
+/// Call the getup API url from the provided url as the path and return the
+/// response as bytes.
+async fn get_request(url: &str) -> Result<Bytes> {
     let full_url = get_full_url(url);
     let client = Client::new();
-    let mut res = client.get(full_url).await?;
-    let body = hyper::body::to_bytes(res).await?;
-    let json_body: Value = serde_json::from_slice(&body).unwrap();
+    let mut resp = client.get(full_url).await?;
+    let body = hyper::body::to_bytes(resp).await?;
+    Ok(body)
+}
+
+async fn _request(url: &str, method: &str) -> Result<Bytes> {
+    let full_url = get_full_url(url);
+    // Build a request object with the full URL.
+    let req = Request::builder()
+        .method("POST")
+        .uri(full_url)
+        .body(Body::from(""))
+        .expect("Failed to build request");
+    let client = Client::new();
+    let mut resp = client.request(req).await?;
+    let body = hyper::body::to_bytes(resp).await?;
+    Ok(body)
+}
+
+/// Call getupd API with a POST request.
+async fn post_request(url: &str) -> Result<Bytes> {
+    Ok(_request(url, "POST").await?)
+}
+
+/// Call the getupd URL and return the JSON response.
+async fn get_json_response(url: &str) -> Result<Value> {
+    let body = get_request(url).await?;
+    let json_body: Value =
+        serde_json::from_slice(&body).expect("Failed to parse json body");
     Ok(json_body)
 }
 
@@ -39,8 +62,10 @@ async fn stop_unit() {}
 
 async fn get_unit_status() {}
 
+/// Ask the getupd daemon to gracefully shutdown.
 async fn shutdown() {}
 
+/// Get all the units currently installed in the getupd daemon.
 async fn get_all_units() -> Result<()> {
     let all_units = get_json_response("/units").await?;
 
