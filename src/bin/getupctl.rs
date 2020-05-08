@@ -62,8 +62,18 @@ async fn stop_unit() {}
 
 async fn get_unit_status() {}
 
+
+/// Ask the getupd daemon to reload the unit files.
+async fn reload() {
+    let _ = post_request("/reload").await;
+}
+
+
 /// Ask the getupd daemon to gracefully shutdown.
-async fn shutdown() {}
+async fn shutdown() {
+    let _ = post_request("/shutdown").await;
+}
+
 
 /// Get all the units currently installed in the getupd daemon.
 async fn get_all_units() -> Result<()> {
@@ -83,6 +93,8 @@ async fn get_all_units() -> Result<()> {
     Ok(())
 }
 
+
+/// Pretty print a unit object.
 fn pretty_print_unit(unit: &Value) {
     println!("----");
     println!("Description: {}", unit.get("description").unwrap());
@@ -101,10 +113,24 @@ async fn main() -> Result<()> {
         .author("Abhilash Raj")
         .about("an alternate init system for GNU/Linux")
         .subcommand(SubCommand::with_name("units").about("get all units"))
+        .subcommand(SubCommand::with_name("shutdown").about("Shutdown getup daemon"))
+        .subcommand(SubCommand::with_name("reload").about("Reload all the unit files"))
         .get_matches();
 
-    if let Some(matches) = matches.subcommand_matches("units") {
-        get_all_units().await;
+    match matches.subcommand_name() {
+        Some("units") => {
+            get_all_units().await;
+            ()
+        }
+        Some("shutdown") => {
+            shutdown().await;
+            ()
+        }
+        Some("reload") => {
+            reload().await;
+            ()
+        }
+        _ => println!("Invalid command.")
     }
 
     Ok(())
