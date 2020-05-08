@@ -62,18 +62,15 @@ async fn stop_unit() {}
 
 async fn get_unit_status() {}
 
-
 /// Ask the getupd daemon to reload the unit files.
 async fn reload() {
     let _ = post_request("/reload").await;
 }
 
-
 /// Ask the getupd daemon to gracefully shutdown.
 async fn shutdown() {
     let _ = post_request("/shutdown").await;
 }
-
 
 /// Get all the units currently installed in the getupd daemon.
 async fn get_all_units() -> Result<()> {
@@ -92,7 +89,6 @@ async fn get_all_units() -> Result<()> {
 
     Ok(())
 }
-
 
 /// Pretty print a unit object.
 fn pretty_print_unit(unit: &Value) {
@@ -130,7 +126,7 @@ async fn main() -> Result<()> {
             reload().await;
             ()
         }
-        _ => println!("Invalid command.")
+        _ => println!("Invalid command."),
     }
 
     Ok(())
