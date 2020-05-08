@@ -1,8 +1,6 @@
-use clap::{App, Arg, SubCommand};
-use hyper::http::Response;
-use hyper::{body::Bytes, body::HttpBody as _, Body, Client, Request, Uri};
+use clap::{App, SubCommand};
+use hyper::{body::Bytes, Body, Client, Request, Uri};
 use serde_json::Value;
-use tokio::io::{self, AsyncWriteExt as _};
 
 static BASE_URL: &'static str = "localhost:3000";
 
@@ -22,23 +20,19 @@ fn get_full_url(path: &str) -> Uri {
 /// Call the getup API url from the provided url as the path and return the
 /// response as bytes.
 async fn get_request(url: &str) -> Result<Bytes> {
-    let full_url = get_full_url(url);
-    let client = Client::new();
-    let mut resp = client.get(full_url).await?;
-    let body = hyper::body::to_bytes(resp).await?;
-    Ok(body)
+    Ok(_request(url, "GET").await?)
 }
 
 async fn _request(url: &str, method: &str) -> Result<Bytes> {
     let full_url = get_full_url(url);
     // Build a request object with the full URL.
     let req = Request::builder()
-        .method("POST")
+        .method(method)
         .uri(full_url)
         .body(Body::from(""))
         .expect("Failed to build request");
     let client = Client::new();
-    let mut resp = client.request(req).await?;
+    let resp = client.request(req).await?;
     let body = hyper::body::to_bytes(resp).await?;
     Ok(body)
 }
@@ -51,8 +45,7 @@ async fn post_request(url: &str) -> Result<Bytes> {
 /// Call the getupd URL and return the JSON response.
 async fn get_json_response(url: &str) -> Result<Value> {
     let body = get_request(url).await?;
-    let json_body: Value =
-        serde_json::from_slice(&body).expect("Failed to parse json body");
+    let json_body: Value = serde_json::from_slice(&body).expect("Failed to parse json body");
     Ok(json_body)
 }
 
@@ -76,7 +69,7 @@ async fn shutdown() {
 async fn get_all_units() -> Result<()> {
     let all_units = get_json_response("/units").await?;
 
-    match all_units.get("units").unwrap() {
+    match all_units.get("units").expect("Failed to get `units` from response") {
         Value::Array(units) => {
             for unit in units {
                 pretty_print_unit(unit);
@@ -95,7 +88,10 @@ fn pretty_print_unit(unit: &Value) {
     println!("----");
     println!("Description: {}", unit.get("description").unwrap());
     println!("Documentation: {}", unit.get("documentation").unwrap());
-    println!("State: {}", unit.get("service").unwrap().get("current_state").unwrap());
+    println!(
+        "State: {}",
+        unit.get("service").unwrap().get("current_state").unwrap()
+    );
     println!(
         "RestartPolicy: {}",
         unit.get("service").unwrap().get("restart_policy").unwrap()
@@ -115,8 +111,10 @@ async fn main() -> Result<()> {
 
     match matches.subcommand_name() {
         Some("units") => {
-            get_all_units().await;
-            ()
+
+            if let Err(some) = get_all_units().await {
+                println!("Failed to get all units {:?}", some);
+            }
         }
         Some("shutdown") => {
             shutdown().await;
